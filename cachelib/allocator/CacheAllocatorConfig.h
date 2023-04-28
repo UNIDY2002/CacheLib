@@ -286,6 +286,10 @@ class CacheAllocatorConfig {
   // before you start customizing this option.
   CacheAllocatorConfig& setEvictionSearchLimit(uint32_t limit);
 
+  // If eviction is disabled, allocator will not attempt eviction even when the
+  // pool is full. The default behavior is enabled.
+  CacheAllocatorConfig& setEvictionEnabled(bool enable);
+
   // Specify a threshold for per-item outstanding references, beyond which,
   // shared_ptr will be allocated instead of handles to support having  more
   // outstanding iobuf
@@ -496,6 +500,9 @@ class CacheAllocatorConfig {
   // the number of tries to search for an item to evict
   // 0 means it's infinite
   unsigned int evictionSearchTries{50};
+
+  // whether to attempt eviction when the pool is full
+  bool disableEviction{false};
 
   // If refcount is larger than this threshold, we will use shared_ptr
   // for handles in IOBuf chains.
@@ -971,6 +978,13 @@ CacheAllocatorConfig<T>& CacheAllocatorConfig<T>::setEvictionSearchLimit(
 }
 
 template <typename T>
+CacheAllocatorConfig<T>& CacheAllocatorConfig<T>::setEvictionEnabled(
+    bool enable) {
+  disableEviction = !enable;
+  return *this;
+}
+
+template <typename T>
 CacheAllocatorConfig<T>&
 CacheAllocatorConfig<T>::setRefcountThresholdForConvertingToIOBuf(
     uint32_t threshold) {
@@ -1141,6 +1155,7 @@ std::map<std::string, std::string> CacheAllocatorConfig<T>::serialize() const {
   configMap["reaperInterval"] = util::toString(reaperInterval);
   configMap["mmReconfigureInterval"] = util::toString(mmReconfigureInterval);
   configMap["evictionSearchTries"] = std::to_string(evictionSearchTries);
+  configMap["disableEviction"] = std::to_string(disableEviction);
   configMap["thresholdForConvertingToIOBuf"] =
       std::to_string(thresholdForConvertingToIOBuf);
   configMap["movingTries"] = std::to_string(movingTries);

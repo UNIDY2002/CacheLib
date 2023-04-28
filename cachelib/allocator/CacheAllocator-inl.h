@@ -1243,6 +1243,9 @@ bool CacheAllocator<CacheTrait>::moveChainedItem(ChainedItem& oldItem,
 template <typename CacheTrait>
 typename CacheAllocator<CacheTrait>::Item*
 CacheAllocator<CacheTrait>::findEviction(PoolId pid, ClassId cid) {
+  if (config_.disableEviction) {
+    return nullptr;
+  }
   auto& mmContainer = getMMContainer(pid, cid);
 
   // Keep searching for a candidate until we were able to evict it

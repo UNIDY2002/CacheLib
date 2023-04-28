@@ -445,6 +445,22 @@ TEST_F(TinyLFUAllocatorTest, EvictionSearchLimit) {
   testEvictionSearchLimit(config);
 }
 
+TEST_F(LruAllocatorTest, DisableEviction) {
+  LruAllocator::MMConfig config;
+  testDisableEviction(config);
+}
+TEST_F(Lru2QAllocatorTest, DisableEviction) {
+  // Set warm queue size to 0 to avoid the key from being stuck in warm
+  // queue and never being evicted which leads to this test's failure.
+  Lru2QAllocator::MMConfig config;
+  testDisableEviction(config);
+}
+TEST_F(TinyLFUAllocatorTest, DisableEviction) {
+  TinyLFUAllocator::MMConfig config;
+  config.tinySizePercent = 0;
+  testDisableEviction(config);
+}
+
 // create some allocation and hold the references to them. These allocations
 // should not be ever evicted. removing the keys while we have handle should
 // not mess up anything. Ensures that evict call backs are called when we hold

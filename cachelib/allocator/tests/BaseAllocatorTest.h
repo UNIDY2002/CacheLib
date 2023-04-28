@@ -3412,6 +3412,41 @@ class BaseAllocatorTest : public AllocatorTest<AllocatorT> {
     ASSERT_LT(0, poolStats.numItems());
   }
 
+  void testDisableEviction(typename AllocatorT::MMConfig mmConfig) {
+    std::set<std::string> evictedKeys;
+    auto removeCb =
+        [&evictedKeys](const typename AllocatorT::RemoveCbData& data) {
+          if (data.context == RemoveContext::kEviction) {
+            const auto key = data.item.getKey();
+            evictedKeys.insert({key.data(), key.size()});
+          }
+        };
+
+    typename AllocatorT::Config config{};
+    config.setEvictionEnabled(false);
+    config.setRemoveCallback(removeCb);
+    config.setCacheSize(2 * Slab::kSize);
+
+    AllocatorT alloc(config);
+    const auto poolId =
+        alloc.addPool("foobar", Slab::kSize, {} /* allocSizes */, mmConfig);
+
+    const uint32_t size = 100;
+    const std::string keyPrefix = "key_";
+
+    for (unsigned int i = 0;; ++i) {
+      const auto key = keyPrefix + folly::to<std::string>(i);
+      auto it = util::allocateAccessible(alloc, poolId, key, size);
+      if (it == nullptr) {
+        break;
+      }
+    }
+    ASSERT_TRUE(evictedKeys.empty());
+
+    const auto poolStats = alloc.getPoolStats(poolId);
+    ASSERT_LT(0, poolStats.numItems());
+  }
+
   void testInsertAndFind(AllocatorT& alloc) {
     const size_t numBytes = alloc.getCacheMemoryStats().ramCacheSize;
     const size_t kAllocSize = 1024, kItemSize = 512;
