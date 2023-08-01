@@ -929,6 +929,13 @@ void CacheAllocator<CacheTrait>::release(Item* it, bool isNascent) {
     const auto res =
         releaseBackToAllocator(*it, RemoveContext::kNormal, isNascent);
     XDCHECK(res == ReleaseRes::kReleased);
+  } else if ((ref & RefcountWithFlags::kAccessRefMask) == 0 &&
+             it->isNvmClean()) {
+    removeFromMMContainer(*it);
+    accessContainer_->remove(*it);
+    const auto res =
+        releaseBackToAllocator(*it, RemoveContext::kNormal, isNascent);
+    XDCHECK(res == ReleaseRes::kReleased);
   }
 }
 
