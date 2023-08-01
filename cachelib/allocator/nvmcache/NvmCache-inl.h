@@ -75,6 +75,10 @@ typename NvmCache<C>::DeleteTombStoneGuard NvmCache<C>::createDeleteTombStone(
   const auto shard = hk.keyHash() % kShards;
   auto guard = tombstones_[shard].add(hk.key());
 
+  if (!config_.enableFillMapOptimization) {
+    return guard;
+  }
+
   // need to synchronize tombstone creations with fill lock to serialize
   // async fills with deletes
   // o/w concurrent onGetComplete might re-insert item to RAM after tombstone
@@ -116,6 +120,9 @@ typename NvmCache<C>::WriteHandle NvmCache<C>::find(HashedKey hk) {
   WriteHandle hdl{nullptr};
   {
     auto lock = getFillLockForShard(shard);
+    if (!config_.enableFillMapOptimization) {
+      lock.unlock();
+    }
     // do not use the Cache::find() since that will call back into us.
     hdl = CacheAPIWrapperForNvm<C>::findInternal(cache_, hk.key());
     if (UNLIKELY(hdl != nullptr)) {
@@ -150,7 +157,8 @@ typename NvmCache<C>::WriteHandle NvmCache<C>::find(HashedKey hk) {
     // For concurrent put, if it is already enqueued, its put context already
     // exists. If it is not enqueued yet (in-flight) the above invalidateToken
     // will prevent the put from being enqueued.
-    if (config_.enableFastNegativeLookups && it == fillMap.end() &&
+    if (config_.enableFastNegativeLookups &&
+        config_.enableFillMapOptimization && it == fillMap.end() &&
         !putContexts_[shard].hasContexts() && !navyCache_->couldExist(hk)) {
       stats().numNvmGetMiss.inc();
       stats().numNvmGetMissFast.inc();
@@ -173,19 +181,29 @@ typename NvmCache<C>::WriteHandle NvmCache<C>::find(HashedKey hk) {
     // create a context
     auto newCtx = std::make_unique<GetCtx>(
         *this, hk.key(), std::move(waitContext), std::move(tracker));
-    auto res =
-        fillMap.emplace(std::make_pair(newCtx->getKey(), std::move(newCtx)));
-    XDCHECK(res.second);
-    ctx = res.first->second.get();
+    if (config_.enableFillMapOptimization) {
+      auto res =
+          fillMap.emplace(std::make_pair(newCtx->getKey(), std::move(newCtx)));
+      XDCHECK(res.second);
+      ctx = res.first->second.get();
+    } else {
+      ctx = newCtx.release();
+    }
   } // scope for fill lock
 
   XDCHECK(ctx);
-  auto guard = folly::makeGuard([hk, this]() { removeFromFillMap(hk); });
+  auto guard = folly::makeGuard([ctx, hk, this]() {
+    if (this->config_.enableFillMapOptimization) {
+      removeFromFillMap(hk);
+    } else {
+      delete ctx;
+    }
+  });
 
   navyCache_->lookupAsync(
       HashedKey::precomputed(ctx->getKey(), hk.keyHash()),
       [this, ctx](navy::Status s, HashedKey k, navy::Buffer v) {
-        this->onGetComplete(*ctx, s, k, v.view());
+        this->onGetComplete(ctx, s, k, v.view());
       });
   guard.dismiss();
   return hdl;
@@ -203,6 +221,9 @@ bool NvmCache<C>::couldExistFast(HashedKey hk) {
   inflightPuts_[shard].invalidateToken(hk.key());
 
   auto lock = getFillLockForShard(shard);
+  if (!config_.enableFillMapOptimization) {
+    lock.unlock();
+  }
   // do not use the Cache::find() since that will call back into us.
   auto hdl = CacheAPIWrapperForNvm<C>::findInternal(cache_, hk.key());
   if (hdl != nullptr) {
@@ -234,8 +255,9 @@ bool NvmCache<C>::couldExistFast(HashedKey hk) {
   // For concurrent put, if it is already enqueued, its put context already
   // exists. If it is not enqueued yet (in-flight) the above invalidateToken
   // will prevent the put from being enqueued.
-  if (config_.enableFastNegativeLookups && it == fillMap.end() &&
-      !putContexts_[shard].hasContexts() && !navyCache_->couldExist(hk)) {
+  if (config_.enableFastNegativeLookups && config_.enableFillMapOptimization &&
+      it == fillMap.end() && !putContexts_[shard].hasContexts() &&
+      !navyCache_->couldExist(hk)) {
     return false;
   }
 
@@ -596,12 +618,18 @@ typename NvmCache<C>::PutToken NvmCache<C>::createPutToken(
 }
 
 template <typename C>
-void NvmCache<C>::onGetComplete(GetCtx& ctx,
+void NvmCache<C>::onGetComplete(GetCtx *ctx,
                                 navy::Status status,
                                 HashedKey hk,
                                 navy::BufferView val) {
   auto guard =
-      folly::makeGuard([&ctx, hk]() { ctx.cache.removeFromFillMap(hk); });
+      folly::makeGuard([ctx, hk, this]() {
+        if (this->config_.enableFillMapOptimization) {
+          ctx->cache.removeFromFillMap(hk);
+        } else {
+          delete ctx;
+        }
+      });
   // navy got disabled while we were fetching. If so, safely return a miss.
   // If navy gets disabled beyond this point, it is okay since we fetched it
   // before we got disabled.
@@ -627,7 +655,7 @@ void NvmCache<C>::onGetComplete(GetCtx& ctx,
     WriteHandle hdl{};
     hdl.markExpired();
     hdl.markWentToNvm();
-    ctx.setWriteHandle(std::move(hdl));
+    ctx->setWriteHandle(std::move(hdl));
     return;
   }
 
@@ -644,7 +672,10 @@ void NvmCache<C>::onGetComplete(GetCtx& ctx,
   XDCHECK(it->isNvmClean());
 
   auto lock = getFillLock(hk);
-  if (hasTombStone(hk) || !ctx.isValid()) {
+  if (!config_.enableFillMapOptimization) {
+    lock.unlock();
+  }
+  if (hasTombStone(hk) || !ctx->isValid()) {
     // a racing remove or evict while we were filling
     stats().numNvmGetMiss.inc();
     stats().numNvmGetMissDueToInflightRemove.inc();
@@ -655,7 +686,7 @@ void NvmCache<C>::onGetComplete(GetCtx& ctx,
   // disregard.
   if (CacheAPIWrapperForNvm<C>::insertFromNvm(cache_, it)) {
     it.markWentToNvm();
-    ctx.setWriteHandle(std::move(it));
+    ctx->setWriteHandle(std::move(it));
   }
 } // namespace cachelib
 

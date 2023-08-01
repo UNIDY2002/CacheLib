@@ -113,6 +113,8 @@ class NvmCache {
     // thread hops by using synchronous methods.
     bool enableFastNegativeLookups{true};
 
+    bool enableFillMapOptimization{true};
+
     // serialize the config for debugging purposes
     std::map<std::string, std::string> serialize() const;
 
@@ -422,7 +424,7 @@ class NvmCache {
     return getFillLockForShard(getShardForKey(hk));
   }
 
-  void onGetComplete(GetCtx& ctx,
+  void onGetComplete(GetCtx* ctx,
                      navy::Status s,
                      HashedKey key,
                      navy::BufferView value);
