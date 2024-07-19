@@ -16,18 +16,9 @@
 
 #include "SlabAllocator.h"
 
-#include <folly/Likely.h>
-#include <folly/Random.h>
-#include <folly/logging/xlog.h>
-#include <folly/synchronization/SanitizeThread.h>
 #include <sys/mman.h>
-#include <sys/types.h>
 
-#include <chrono>
-#include <memory>
 #include <stdexcept>
-
-#include "common/Utils.h"
 
 /* Missing madvise(2) flags on MacOS */
 #ifndef MADV_REMOVE
@@ -260,40 +251,6 @@ bool SlabAllocator::isMemoryInSlab(const void* ptr,
     return false;
   }
   return getSlabForMemory(ptr) == slab;
-}
-
-const void* SlabAllocator::getRandomAlloc() const noexcept {
-  // disregard the space we use for slab header.
-  const auto validMaxOffset =
-      memorySize_ - (reinterpret_cast<uintptr_t>(slabMemoryStart_) -
-                     reinterpret_cast<uintptr_t>(memoryStart_));
-
-  // pick a random location in the memory.
-  const auto offset = folly::Random::rand64(0, validMaxOffset);
-  const auto* memory = reinterpret_cast<void*>(
-      reinterpret_cast<uintptr_t>(slabMemoryStart_) + offset);
-
-  const auto* slab = getSlabForMemory(memory);
-  const auto* header = getSlabHeader(slab);
-  if (header == nullptr) {
-    return nullptr;
-  }
-
-  XDCHECK_GE(reinterpret_cast<uintptr_t>(memory),
-             reinterpret_cast<uintptr_t>(slab));
-
-  const auto allocSize = header->allocSize;
-  if (allocSize == 0) {
-    return nullptr;
-  }
-
-  const auto maxAllocIdx = Slab::kSize / allocSize - 1;
-  auto allocIdx = (reinterpret_cast<uintptr_t>(memory) -
-                   reinterpret_cast<uintptr_t>(slab)) /
-                  allocSize;
-  allocIdx = allocIdx > maxAllocIdx ? maxAllocIdx : allocIdx;
-  return reinterpret_cast<const void*>(reinterpret_cast<uintptr_t>(slab) +
-                                       allocSize * allocIdx);
 }
 
 // for benchmarking purposes.

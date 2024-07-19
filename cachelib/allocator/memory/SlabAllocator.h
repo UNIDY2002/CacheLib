@@ -30,7 +30,6 @@
 
 #pragma GCC diagnostic pop
 #include <folly/logging/xlog.h>
-#include <folly/synchronization/SanitizeThread.h>
 
 #include "CompressedPtr.h"
 #include "Slab.h"
@@ -38,11 +37,6 @@
 
 namespace facebook {
 namespace cachelib {
-
-// forward declarations
-namespace tests {
-class AllocTestBase;
-}
 
 // Given a contiguous piece of memory, divides it up into slabs. The slab
 // allocator is also responsible for providing memory for the slab headers for
@@ -90,14 +84,6 @@ class SlabAllocator {
     LockHolder l(lock_);
     return allMemorySlabbed() && freeSlabs_.empty();
   }
-
-  // fetch a random allocation in memory.
-  // this does not guarantee the allocation is in a valid state.
-  //
-  // @return the start address of the allocation
-  //         nullptr if the allocation is in invalid state according to
-  //         allocator.
-  const void* getRandomAlloc() const noexcept;
 
   // grab an empty slab from the slab allocator if one is available.
   //
@@ -388,9 +374,6 @@ class SlabAllocator {
   static constexpr uint64_t kAddressMask =
       std::numeric_limits<uint64_t>::max() -
       (static_cast<uint64_t>(1) << Slab::kNumSlabBits) + 1;
-
-  // Allow access to private members by unit tests
-  friend class facebook::cachelib::tests::AllocTestBase;
 };
 } // namespace cachelib
 } // namespace facebook

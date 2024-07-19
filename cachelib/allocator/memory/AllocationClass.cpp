@@ -16,16 +16,12 @@
 
 #include "AllocationClass.h"
 
-#include <folly/Try.h>
-#include <folly/logging/xlog.h>
-
 #include "SlabAllocator.h"
 #include "common/Exceptions.h"
 #include "common/Throttler.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-#include <folly/Format.h>
 #include <folly/Random.h>
 #pragma GCC diagnostic pop
 

@@ -32,11 +32,6 @@
 namespace facebook {
 namespace cachelib {
 
-// forward declaration.
-namespace tests {
-class AllocTestBase;
-}
-
 /* The following is a brief overview of the different hierarchies in the
  * implementation.
  *
@@ -425,16 +420,6 @@ class MemoryAllocator {
     return config_.allocSizes;
   }
 
-  // fetch a random allocation in memory.
-  // this does not guarantee the allocation is in any valid state.
-  //
-  // @return the start address of the allocation
-  //         nullptr if the random allocation is invalid state according to
-  //         the allocator.
-  const void* getRandomAlloc() const noexcept {
-    return slabAllocator_.getRandomAlloc();
-  }
-
   // fetch the allocation class info corresponding to a given size in a pool.
   //
   // @param poolId  the pool to be allocated from
@@ -570,9 +555,6 @@ class MemoryAllocator {
   // the instance used for book keeping information about the memory pools
   // configuration.
   MemoryPoolManager memoryPoolManager_;
-
-  // Allow access to private members by unit tests
-  friend class facebook::cachelib::tests::AllocTestBase;
 };
 } // namespace cachelib
 } // namespace facebook

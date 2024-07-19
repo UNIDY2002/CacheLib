@@ -19,7 +19,6 @@
 #include <folly/SharedMutex.h>
 
 #include <array>
-#include <memory>
 #include <unordered_map>
 
 #pragma GCC diagnostic push
@@ -146,9 +145,6 @@ class MemoryPoolManager {
 
   // slab allocator for the pools
   SlabAllocator& slabAlloc_;
-
-  // Allow access to private members by unit tests
-  friend class facebook::cachelib::tests::AllocTestBase;
 };
 } // namespace cachelib
 } // namespace facebook

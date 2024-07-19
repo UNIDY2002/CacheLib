@@ -32,11 +32,6 @@
 namespace facebook {
 namespace cachelib {
 
-// forward declaration
-namespace tests {
-class AllocTestBase;
-}
-
 enum class SlabIterationStatus {
   kFinishedCurrentSlabAndContinue,
   kSkippedCurrentSlabAndContinue,
@@ -457,10 +452,6 @@ class AllocationClass {
   // Numer of allocations ahead to prefetch when iterating over each allocation
   // in a slab.
   static constexpr unsigned int kForEachAllocPrefetchOffset = 16;
-
-  // Allow access to private members by unit tests
-  friend class facebook::cachelib::tests::AllocTestBase;
-  FRIEND_TEST(AllocationClassTest, ReleaseSlabMultithread);
 };
 } // namespace cachelib
 } // namespace facebook

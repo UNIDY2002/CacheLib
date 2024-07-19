@@ -18,8 +18,6 @@
 
 #include <folly/logging/xlog.h>
 
-#include <memory>
-
 #include "Slab.h"
 
 namespace facebook {

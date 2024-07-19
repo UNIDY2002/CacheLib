@@ -22,11 +22,6 @@
 #include "AllocationClass.h"
 #include "SlabAllocator.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#include <folly/Format.h>
-#pragma GCC diagnostic pop
-
 using namespace facebook::cachelib;
 using LockHolder = std::unique_lock<std::mutex>;
 

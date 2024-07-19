@@ -16,13 +16,6 @@
 
 #include "MemoryPoolManager.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#include <folly/Format.h>
-
-#include <memory>
-#pragma GCC diagnostic pop
-
 using namespace facebook::cachelib;
 
 constexpr unsigned int MemoryPoolManager::kMaxPools;

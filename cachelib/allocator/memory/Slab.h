@@ -17,7 +17,6 @@
 #pragma once
 
 #include <folly/logging/xlog.h>
-#include <gtest/gtest.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -309,7 +308,6 @@ class SlabReleaseContext {
   }
 
   friend class MemoryPool;
-  FRIEND_TEST(MemoryAllocatorTest, ReleaseSlabToReceiver);
 };
 } // namespace cachelib
 } // namespace facebook

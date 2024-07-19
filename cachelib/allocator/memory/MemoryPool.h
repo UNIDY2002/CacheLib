@@ -18,8 +18,8 @@
 
 #include <atomic>
 #include <cstddef>
-#include <memory>
 #include <mutex>
+#include <set>
 #include <vector>
 
 #include "AllocationClass.h"
@@ -27,10 +27,6 @@
 
 namespace facebook {
 namespace cachelib {
-
-namespace tests {
-class AllocTestBase;
-} // namespace tests
 
 class SlabAllocator;
 
@@ -357,9 +353,6 @@ class MemoryPool {
   std::atomic<unsigned int> nSlabResize_{0};
   std::atomic<unsigned int> nSlabRebalance_{0};
   std::atomic<unsigned int> nSlabReleaseAborted_{0};
-
-  // Allow access to private members by unit tests
-  friend class facebook::cachelib::tests::AllocTestBase;
 };
 } // namespace cachelib
 } // namespace facebook
