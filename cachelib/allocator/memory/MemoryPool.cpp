@@ -429,21 +429,3 @@ void MemoryPool::completeSlabRelease(const SlabReleaseContext& context) {
 
   releaseSlab(mode, slab, zeroOnRelease, context.getReceiverClassId());
 }
-
-MPStats MemoryPool::getStats() const {
-  LockHolder l(lock_);
-  folly::F14FastMap<ClassId, ACStats> acStats;
-  std::set<ClassId> classIds;
-  for (const auto& ac : ac_) {
-    acStats.insert({ac->getId(), ac->getStats()});
-    classIds.insert(ac->getId());
-  }
-
-  const auto availableMemory = getUnAllocatedSlabMemory();
-  const auto slabsUnAllocated =
-      availableMemory > 0 ? availableMemory / Slab::kSize - freeSlabs_.size()
-                          : 0;
-  return MPStats{std::move(classIds), std::move(acStats), freeSlabs_.size(),
-                 slabsUnAllocated,    nSlabResize_,       nSlabRebalance_,
-                 curSlabsAdvised_};
-}

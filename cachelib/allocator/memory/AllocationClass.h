@@ -26,7 +26,6 @@
 
 #include "SList.h"
 #include "CompressedPtr.h"
-#include "MemoryAllocatorStats.h"
 #include "Slab.h"
 #include "SlabAllocator.h"
 
@@ -77,9 +76,6 @@ class AllocationClass {
   unsigned int getAllocsPerSlab() const noexcept {
     return static_cast<unsigned int>(Slab::kSize / allocationSize_);
   }
-
-  // fetch stats about this allocation class.
-  ACStats getStats() const;
 
   // Whether the pool is full or free to allocate more in the current state.
   // This is only a hint and not a gurantee that subsequent allocate will

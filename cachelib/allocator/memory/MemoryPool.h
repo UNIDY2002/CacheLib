@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "AllocationClass.h"
-#include "MemoryAllocatorStats.h"
 #include "Slab.h"
 
 namespace facebook {
@@ -116,8 +115,6 @@ class MemoryPool {
     auto currAdvisedSize = getPoolAdvisedSize();
     return (currSlabAllocSize_ + currAdvisedSize + Slab::kSize) > maxSize_;
   }
-
-  MPStats getStats() const;
 
   // allocates memory of at least _size_ bytes.
   //

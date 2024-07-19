@@ -630,22 +630,6 @@ void AllocationClass::free(void* memory) {
   });
 }
 
-ACStats AllocationClass::getStats() const {
-  return lock_->lock_combine([this]() -> ACStats {
-    const auto freeAllocsInCurrSlab =
-        canAllocateFromCurrentSlabLocked()
-            ? (Slab::kSize - currOffset_) / allocationSize_
-            : 0;
-    const unsigned long long perSlab = getAllocsPerSlab();
-    const unsigned long long nSlabsAllocated = allocatedSlabs_.size();
-    const unsigned long long nFreedAllocs = freedAllocations_.size();
-    const unsigned long long nActiveAllocs =
-        nSlabsAllocated * perSlab - nFreedAllocs - freeAllocsInCurrSlab;
-    return {allocationSize_, perSlab,       nSlabsAllocated, freeSlabs_.size(),
-            nFreedAllocs,    nActiveAllocs, isFull()};
-  });
-}
-
 void AllocationClass::createSlabReleaseAllocMapLocked(const Slab* slab) {
   // Initialize slab free state
   // Each bit represents whether or not an alloc has already been freed
