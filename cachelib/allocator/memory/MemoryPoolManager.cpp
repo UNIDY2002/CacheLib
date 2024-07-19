@@ -50,7 +50,7 @@ PoolId MemoryPoolManager::createNewPool(std::string name,
   const size_t remaining = getRemainingSizeLocked();
   if (remaining < poolSize) {
     // not enough memory to create a new pool.
-    throw std::invalid_argument(folly::sformat(
+    throw std::invalid_argument(fmt::format(
         "Not enough memory ({} bytes) to create a new pool of size {} bytes",
         remaining,
         poolSize));
@@ -68,7 +68,7 @@ MemoryPool& MemoryPoolManager::getPoolByName(const std::string& name) const {
   std::shared_lock l(lock_);
   auto it = poolsByName_.find(name);
   if (it == poolsByName_.end()) {
-    throw std::invalid_argument(folly::sformat("Invalid pool name {}", name));
+    throw std::invalid_argument(fmt::format("Invalid pool name {}", name));
   }
 
   auto poolId = it->second;
@@ -85,7 +85,7 @@ MemoryPool& MemoryPoolManager::getPoolById(PoolId id) const {
     XDCHECK(pools_[id] != nullptr);
     return *pools_[id];
   }
-  throw std::invalid_argument(folly::sformat("Invalid pool id {}", id));
+  throw std::invalid_argument(fmt::format("Invalid pool id {}", id));
 }
 
 const std::string& MemoryPoolManager::getPoolNameById(PoolId id) const {
@@ -95,7 +95,7 @@ const std::string& MemoryPoolManager::getPoolNameById(PoolId id) const {
       return pair.first;
     }
   }
-  throw std::invalid_argument(folly::sformat("Invali pool id {}", id));
+  throw std::invalid_argument(fmt::format("Invali pool id {}", id));
 }
 
 std::set<PoolId> MemoryPoolManager::getPoolIds() const {

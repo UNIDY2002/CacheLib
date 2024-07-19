@@ -64,7 +64,7 @@ PoolId MemoryAllocator::addPool(std::string name,
 
   if (ensureProvisionable &&
       cachelib::Slab::kSize * poolAllocSizes.size() > size) {
-    throw std::invalid_argument(folly::sformat(
+    throw std::invalid_argument(fmt::format(
         "Pool {} cannot have at least one slab for each allocation class. "
         "{} bytes required, {} bytes given.",
         name,
@@ -156,12 +156,12 @@ std::set<uint32_t> MemoryAllocator::generateAllocSizes(
     bool reduceFragmentation) {
   if (maxSize > Slab::kSize) {
     throw std::invalid_argument(
-        folly::sformat("maximum alloc size {} is more than the slab size {}",
+        fmt::format("maximum alloc size {} is more than the slab size {}",
                        maxSize, Slab::kSize));
   }
 
   if (factor <= 1.0) {
-    throw std::invalid_argument(folly::sformat("invalid factor {}", factor));
+    throw std::invalid_argument(fmt::format("invalid factor {}", factor));
   }
 
   // Returns the next chunk size. Uses the previous size and factor to select a
@@ -179,7 +179,7 @@ std::set<uint32_t> MemoryAllocator::generateAllocSizes(
                                      kAlignment);
       if (newSize == tmpPrevSize) {
         throw std::invalid_argument(
-            folly::sformat("invalid incFactor {}", incFactor));
+            fmt::format("invalid incFactor {}", incFactor));
       }
 
       if (newSize > Slab::kSize) {
@@ -218,7 +218,7 @@ std::set<uint32_t> MemoryAllocator::generateAllocSizes(
                                   kAlignment);
       if (prevSize == size) {
         throw std::invalid_argument(
-            folly::sformat("invalid incFactor {}", factor));
+            fmt::format("invalid incFactor {}", factor));
       }
     }
   }

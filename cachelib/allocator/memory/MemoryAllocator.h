@@ -24,11 +24,6 @@
 #include "Slab.h"
 #include "SlabAllocator.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#include <folly/Format.h>
-#pragma GCC diagnostic pop
-
 namespace facebook {
 namespace cachelib {
 

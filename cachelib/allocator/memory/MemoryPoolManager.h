@@ -17,6 +17,7 @@
 #pragma once
 
 #include <array>
+#include <map>
 #include <shared_mutex>
 #include <unordered_map>
 

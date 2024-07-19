@@ -48,29 +48,29 @@ constexpr size_t SlabAllocator::kPagesPerStep;
 void SlabAllocator::checkState() const {
   if (memoryStart_ == nullptr || memorySize_ <= Slab::kSize) {
     throw std::invalid_argument(
-        folly::sformat("Invalid memory spec. memoryStart = {}, size = {}",
+        fmt::format("Invalid memory spec. memoryStart = {}, size = {}",
                        memoryStart_,
                        memorySize_));
   }
 
   if (slabMemoryStart_ == nullptr || nextSlabAllocation_ == nullptr) {
     throw std::invalid_argument(
-        folly::sformat("Invalid slabMemoryStart_ {} of nextSlabAllocation_ {}",
-                       slabMemoryStart_,
-                       nextSlabAllocation_));
+        fmt::format("Invalid slabMemoryStart_ {} of nextSlabAllocation_ {}",
+                    (void*) slabMemoryStart_,
+                    (void*) nextSlabAllocation_));
   }
 
   // nextSlabAllocation_ should be valid.
   if (nextSlabAllocation_ > getSlabMemoryEnd()) {
     throw std::invalid_argument(
-        folly::sformat("Invalid nextSlabAllocation_ {}, with SlabMemoryEnd {}",
-                       nextSlabAllocation_,
-                       getSlabMemoryEnd()));
+        fmt::format("Invalid nextSlabAllocation_ {}, with SlabMemoryEnd {}",
+                    (void*) nextSlabAllocation_,
+                    (void*) getSlabMemoryEnd()));
   }
 
   for (const auto slab : freeSlabs_) {
     if (!isValidSlab(slab)) {
-      throw std::invalid_argument(folly::sformat("Invalid free slab {}", slab));
+      throw std::invalid_argument(fmt::format("Invalid free slab {}", (void*) slab));
     }
   }
 }
@@ -157,7 +157,7 @@ Slab* SlabAllocator::computeSlabMemoryStart(void* memoryStart,
   if (memoryStart == nullptr ||
       reinterpret_cast<uintptr_t>(memoryStart) % sizeof(Slab)) {
     throw std::invalid_argument(
-        folly::sformat("Invalid memory start {}", memoryStart));
+        fmt::format("Invalid memory start {}", memoryStart));
   }
 
   // reserve the first numHeaderSlabs for storing the header info for all the
@@ -218,7 +218,7 @@ void SlabAllocator::freeSlab(Slab* slab) {
   auto* header = getSlabHeader(slab);
   XDCHECK(header != nullptr);
   if (header == nullptr) {
-    throw std::runtime_error(folly::sformat("Invalid Slab {}", slab));
+    throw std::runtime_error(fmt::format("Invalid Slab {}", (void*) slab));
   }
 
   memoryPoolSize_[header->poolId] -= sizeof(Slab);

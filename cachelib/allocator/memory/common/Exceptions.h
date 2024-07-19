@@ -34,7 +34,7 @@
   do {                                                                       \
     if (UNLIKELY(!(cond))) {                                                 \
       XLOGF(ERR, "CHECK FAILED: " #cond "," fmt, arg1, ##__VA_ARGS__);       \
-      throw std::invalid_argument(folly::sformat(fmt, arg1, ##__VA_ARGS__)); \
+      throw std::invalid_argument(fmt::format(fmt, arg1, ##__VA_ARGS__)); \
     }                                                                        \
   } while (0)
 #endif

@@ -24,11 +24,8 @@
 #include <unordered_map>
 #include <vector>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#include <folly/Format.h>
-
-#pragma GCC diagnostic pop
+#define FMT_HEADER_ONLY
+#include <fmt/core.h>
 #include <folly/logging/xlog.h>
 
 #include "CompressedPtr.h"
@@ -170,7 +167,7 @@ class SlabAllocator {
     const Slab* slab = getSlabForMemory(ptr);
     if (!isValidSlab(slab)) {
       throw std::invalid_argument(
-          folly::sformat("Invalid pointer ptr {}", ptr));
+          fmt::format("Invalid pointer ptr {}", ptr));
     }
 
     const auto slabIndex = static_cast<SlabIdx>(slab - slabMemoryStart_);
@@ -206,7 +203,7 @@ class SlabAllocator {
 #ifndef NDEBUG
     if (UNLIKELY(!isValidSlab(slab))) {
       throw std::invalid_argument(
-          folly::sformat("Invalid slab index {}", slabIndex));
+          fmt::format("Invalid slab index {}", slabIndex));
     }
 #endif
 
@@ -219,7 +216,7 @@ class SlabAllocator {
 #ifndef NDEBUG
     if (offset >= Slab::kSize) {
       throw std::invalid_argument(
-          folly::sformat("Invalid slab offset. allocSize = {}, allocIdx = {}",
+          fmt::format("Invalid slab offset. allocSize = {}, allocIdx = {}",
                          allocSize,
                          allocIdx));
     }
