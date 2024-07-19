@@ -28,14 +28,13 @@
 #pragma GCC diagnostic ignored "-Wconversion"
 #include <folly/Format.h>
 
-#include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
 #pragma GCC diagnostic pop
 #include <folly/logging/xlog.h>
 #include <folly/synchronization/SanitizeThread.h>
 
-#include "cachelib/allocator/memory/CompressedPtr.h"
-#include "cachelib/allocator/memory/Slab.h"
-#include "cachelib/common/Utils.h"
+#include "CompressedPtr.h"
+#include "Slab.h"
+#include "common/Utils.h"
 
 namespace facebook {
 namespace cachelib {
@@ -88,22 +87,6 @@ class SlabAllocator {
 
   SlabAllocator(const SlabAllocator&) = delete;
   SlabAllocator& operator=(const SlabAllocator&) = delete;
-
-  // restore the state of the slab allocator from a previous instance. The
-  // caller needs to ensure that the same memory region of the appropriate
-  // size is already mapped into the process.
-  //
-  // @param object        Object that contains the data to restore SlabAllocator
-  // @param memoryStart   the start of the memory that was originally used
-  // @param memorySize    the size of the memory that was originally used
-  // @param config        the new config for this allocator
-  //
-  // @throw std::invalid_argument if the memoryStart/size does not match the
-  //        previous instance of the same allocator
-  SlabAllocator(const serialization::SlabAllocatorObject& object,
-                void* memoryStart,
-                size_t memorySize,
-                const Config& config);
 
   // returns true if the slab allocator can be restored through serialized
   // state. This is a precondition to calling saveState.
@@ -182,17 +165,6 @@ class SlabAllocator {
   // return the SlabHeader for the given slab or nullptr if the slab is
   // invalid
   SlabHeader* getSlabHeader(const Slab* const slab) const noexcept;
-
-  // for saving the state of the slab allocator state and reattaching.
-  //
-  // precondition:  The object must have been instantiated with the
-  // constructor that does not own the memory. serialization must happen
-  // without any reader or writer present. Any modification of this object
-  // afterwards will result in an invalid, inconsistent state for the
-  // serialized data.
-  //
-  // @throw std::logic_error if the object state can not be serialized
-  serialization::SlabAllocatorObject saveState();
 
   // returns ture if ptr points to memory in the slab and the slab is a valid
   // slab, false otherwise.

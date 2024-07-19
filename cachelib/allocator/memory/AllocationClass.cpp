@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "cachelib/allocator/memory/AllocationClass.h"
+#include "AllocationClass.h"
 
 #include <folly/Try.h>
 #include <folly/logging/xlog.h>
 
-#include "cachelib/allocator/memory/SlabAllocator.h"
-#include "cachelib/common/Exceptions.h"
-#include "cachelib/common/Throttler.h"
+#include "SlabAllocator.h"
+#include "common/Exceptions.h"
+#include "common/Throttler.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -33,8 +33,6 @@
 #include <chrono>
 #include <stdexcept>
 #include <thread>
-
-#include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
 
 using namespace facebook::cachelib;
 
@@ -87,36 +85,6 @@ void AllocationClass::checkState() const {
         "Current allocation slab {} is not in allocated slabs list",
         currSlab_));
   }
-}
-
-// TODO(stuclar): Add poolId to the metadata to be serialized when cache shuts
-// down.
-AllocationClass::AllocationClass(
-    const serialization::AllocationClassObject& object,
-    PoolId poolId,
-    const SlabAllocator& s)
-    : classId_(*object.classId()),
-      poolId_(poolId),
-      allocationSize_(static_cast<uint32_t>(*object.allocationSize())),
-      currOffset_(static_cast<uint32_t>(*object.currOffset())),
-      currSlab_(s.getSlabForIdx(*object.currSlabIdx())),
-      slabAlloc_(s),
-      freedAllocations_(*object.freedAllocationsObject(),
-                        slabAlloc_.createPtrCompressor<FreeAlloc>()),
-      canAllocate_(*object.canAllocate()) {
-  if (!slabAlloc_.isRestorable()) {
-    throw std::logic_error("The allocation class cannot be restored.");
-  }
-
-  for (auto allocatedSlabIdx : *object.allocatedSlabIdxs()) {
-    allocatedSlabs_.push_back(slabAlloc_.getSlabForIdx(allocatedSlabIdx));
-  }
-
-  for (auto freeSlabIdx : *object.freeSlabIdxs()) {
-    freeSlabs_.push_back(slabAlloc_.getSlabForIdx(freeSlabIdx));
-  }
-
-  checkState();
 }
 
 void AllocationClass::addSlabLocked(Slab* slab) {
@@ -660,31 +628,6 @@ void AllocationClass::free(void* memory) {
     freedAllocations_.insert(*reinterpret_cast<FreeAlloc*>(memory));
     canAllocate_ = true;
   });
-}
-
-serialization::AllocationClassObject AllocationClass::saveState() const {
-  if (!slabAlloc_.isRestorable()) {
-    throw std::logic_error("The allocation class cannot be restored.");
-  }
-  if (activeReleases_ > 0) {
-    throw std::logic_error(
-        "Can not save state when there are active slab releases happening");
-  }
-
-  serialization::AllocationClassObject object;
-  *object.classId() = classId_;
-  *object.allocationSize() = allocationSize_;
-  *object.currSlabIdx() = slabAlloc_.slabIdx(currSlab_);
-  *object.currOffset() = currOffset_;
-  for (auto slab : allocatedSlabs_) {
-    object.allocatedSlabIdxs()->push_back(slabAlloc_.slabIdx(slab));
-  }
-  for (auto slab : freeSlabs_) {
-    object.freeSlabIdxs()->push_back(slabAlloc_.slabIdx(slab));
-  }
-  *object.freedAllocationsObject() = freedAllocations_.saveState();
-  *object.canAllocate() = canAllocate_;
-  return object;
 }
 
 ACStats AllocationClass::getStats() const {

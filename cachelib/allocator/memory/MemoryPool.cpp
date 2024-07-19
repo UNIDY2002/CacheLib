@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include "cachelib/allocator/memory/MemoryPool.h"
+#include "MemoryPool.h"
 
 #include <algorithm>
 #include <string>
 
-#include "cachelib/allocator/memory/AllocationClass.h"
-#include "cachelib/allocator/memory/SlabAllocator.h"
+#include "AllocationClass.h"
+#include "SlabAllocator.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -29,28 +29,6 @@
 
 using namespace facebook::cachelib;
 using LockHolder = std::unique_lock<std::mutex>;
-
-/* static */
-std::vector<uint32_t> MemoryPool::createMcSizesFromSerialized(
-    const serialization::MemoryPoolObject& object) {
-  std::vector<uint32_t> acSizes;
-  for (auto size : *object.acSizes()) {
-    acSizes.push_back(static_cast<uint32_t>(size));
-  }
-  return acSizes;
-}
-
-/* static */
-MemoryPool::ACVector MemoryPool::createMcFromSerialized(
-    const serialization::MemoryPoolObject& object,
-    PoolId poolId,
-    SlabAllocator& alloc) {
-  MemoryPool::ACVector ac;
-  for (const auto& allocClassObject : *object.ac()) {
-    ac.emplace_back(new AllocationClass(allocClassObject, poolId, alloc));
-  }
-  return ac;
-}
 
 MemoryPool::MemoryPool(PoolId id,
                        size_t poolSize,
@@ -61,29 +39,6 @@ MemoryPool::MemoryPool(PoolId id,
       slabAllocator_(alloc),
       acSizes_(allocSizes.begin(), allocSizes.end()),
       ac_(createAllocationClasses()) {
-  checkState();
-}
-
-MemoryPool::MemoryPool(const serialization::MemoryPoolObject& object,
-                       SlabAllocator& alloc)
-    : id_(*object.id()),
-      maxSize_(*object.maxSize()),
-      currSlabAllocSize_(*object.currSlabAllocSize()),
-      currAllocSize_(*object.currAllocSize()),
-      slabAllocator_(alloc),
-      acSizes_(createMcSizesFromSerialized(object)),
-      ac_(createMcFromSerialized(object, getId(), alloc)),
-      curSlabsAdvised_{static_cast<uint64_t>(*object.numSlabsAdvised())},
-      nSlabResize_{static_cast<unsigned int>(*object.numSlabResize())},
-      nSlabRebalance_{static_cast<unsigned int>(*object.numSlabRebalance())} {
-  if (!slabAllocator_.isRestorable()) {
-    throw std::logic_error(
-        "Memory Pool can not be restored with this slab allocator");
-  }
-
-  for (auto freeSlabIdx : *object.freeSlabIdxs()) {
-    freeSlabs_.push_back(slabAllocator_.getSlabForIdx(freeSlabIdx));
-  }
   checkState();
 }
 
@@ -315,37 +270,6 @@ void MemoryPool::free(void* alloc) {
   auto& ac = getAllocationClassFor(alloc);
   ac.free(alloc);
   currAllocSize_ -= ac.getAllocSize();
-}
-
-serialization::MemoryPoolObject MemoryPool::saveState() const {
-  if (!slabAllocator_.isRestorable()) {
-    throw std::logic_error("Memory Pool can not be restored");
-  }
-
-  serialization::MemoryPoolObject object;
-
-  *object.id() = id_;
-  *object.maxSize() = maxSize_;
-  *object.currSlabAllocSize() = currSlabAllocSize_;
-  *object.currAllocSize() = currAllocSize_;
-
-  for (auto slab : freeSlabs_) {
-    object.freeSlabIdxs()->push_back(slabAllocator_.slabIdx(slab));
-  }
-
-  for (auto size : acSizes_) {
-    object.acSizes()->push_back(size);
-  }
-
-  for (const std::unique_ptr<AllocationClass>& allocClass : ac_) {
-    object.ac()->push_back(allocClass->saveState());
-  }
-
-  *object.numSlabResize() = nSlabResize_;
-  *object.numSlabRebalance() = nSlabRebalance_;
-  *object.numSlabsAdvised() = curSlabsAdvised_;
-
-  return object;
 }
 
 void MemoryPool::releaseSlab(SlabReleaseMode mode,

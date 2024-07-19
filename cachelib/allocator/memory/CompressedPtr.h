@@ -20,7 +20,7 @@
 
 #include <memory>
 
-#include "cachelib/allocator/memory/Slab.h"
+#include "Slab.h"
 
 namespace facebook {
 namespace cachelib {

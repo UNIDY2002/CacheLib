@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "cachelib/allocator/memory/SlabAllocator.h"
+#include "SlabAllocator.h"
 
 #include <folly/Likely.h>
 #include <folly/Random.h>
@@ -27,7 +27,7 @@
 #include <memory>
 #include <stdexcept>
 
-#include "cachelib/common/Utils.h"
+#include "common/Utils.h"
 
 /* Missing madvise(2) flags on MacOS */
 #ifndef MADV_REMOVE
@@ -141,77 +141,6 @@ SlabAllocator::SlabAllocator(void* memoryStart,
   XDCHECK(nextSlabAllocation_ != nullptr);
   XDCHECK_EQ(reinterpret_cast<uintptr_t>(nextSlabAllocation_),
              reinterpret_cast<uintptr_t>(slabMemoryStart_));
-}
-
-SlabAllocator::SlabAllocator(const serialization::SlabAllocatorObject& object,
-                             void* memoryStart,
-                             size_t memSize,
-                             const Config& config)
-    : memoryStart_(memoryStart),
-      memorySize_(*object.memorySize()),
-      slabMemoryStart_(computeSlabMemoryStart(memoryStart_, memorySize_)),
-      nextSlabAllocation_(getSlabForIdx(*object.nextSlabIdx())),
-      canAllocate_(*object.canAllocate()),
-      ownsMemory_(false) {
-  if (Slab::kSize != *object.slabSize()) {
-    throw std::invalid_argument(folly::sformat(
-        "current slab size {} does not match the previous one {}",
-        Slab::kSize,
-        *object.slabSize()));
-  }
-
-  if (CompressedPtr::getMinAllocSize() != *object.minAllocSize()) {
-    throw std::invalid_argument(folly::sformat(
-        "current min alloc size {} does not match the previous one {}",
-        CompressedPtr::getMinAllocSize(),
-        *object.minAllocSize()));
-  }
-
-  XDCHECK(isRestorable());
-
-  const size_t currSize = roundDownToSlabSize(memSize);
-  if (memorySize_ != currSize) {
-    throw std::invalid_argument(folly::sformat(
-        "Memory size {} does not match the saved state's size {}",
-        currSize,
-        memorySize_));
-  }
-
-  if (config.excludeFromCoredump) {
-    excludeMemoryFromCoredump();
-  }
-
-  for (const auto& pair : *object.memoryPoolSize()) {
-    const PoolId id = pair.first;
-    if (id >= static_cast<PoolId>(memoryPoolSize_.size())) {
-      throw std::invalid_argument(
-          folly::sformat("Invalid class id {}. Max Class Id {}",
-                         id,
-                         memoryPoolSize_.size() - 1));
-    }
-    memoryPoolSize_[id] = pair.second;
-  }
-
-  for (auto freeSlabIdx : *object.freeSlabIdxs()) {
-    freeSlabs_.push_back(getSlabForIdx(freeSlabIdx));
-  }
-
-  for (auto advisedSlabIdx : *object.advisedSlabIdxs()) {
-    // The slab headers in previous release did not have advised flag
-    // set in the slab header. To avoid memory locking from touching
-    // advised slab pages, we'd have to cold roll. To avoid cold roll
-    // explicitly set the advised bit here.
-    auto header = getSlabHeader(advisedSlabIdx);
-    XDCHECK(header != nullptr);
-    header->setAdvised(true);
-    advisedSlabs_.push_back(getSlabForIdx(advisedSlabIdx));
-  }
-
-  if (config.lockMemory) {
-    memoryLocker_ = std::thread{[this]() { lockMemoryAsync(); }};
-  }
-
-  checkState();
 }
 
 void SlabAllocator::lockMemoryAsync() noexcept {
@@ -494,35 +423,6 @@ const void* SlabAllocator::getRandomAlloc() const noexcept {
   allocIdx = allocIdx > maxAllocIdx ? maxAllocIdx : allocIdx;
   return reinterpret_cast<const void*>(reinterpret_cast<uintptr_t>(slab) +
                                        allocSize * allocIdx);
-}
-
-serialization::SlabAllocatorObject SlabAllocator::saveState() {
-  if (!isRestorable()) {
-    throw std::logic_error("Can not save state when memory is mmaped");
-  }
-
-  // stop async thread that is paging in memory if it is still running.
-  stopMemoryLocker();
-
-  serialization::SlabAllocatorObject object;
-  *object.memorySize() = memorySize_;
-  *object.nextSlabIdx() = slabIdx(nextSlabAllocation_);
-  *object.canAllocate() = canAllocate_;
-
-  for (PoolId id = 0; id < static_cast<PoolId>(memoryPoolSize_.size()); ++id) {
-    object.memoryPoolSize()[id] = memoryPoolSize_[id];
-  }
-
-  for (auto slab : freeSlabs_) {
-    object.freeSlabIdxs()->push_back(slabIdx(slab));
-  }
-  for (auto slab : advisedSlabs_) {
-    object.advisedSlabIdxs()->push_back(slabIdx(slab));
-  }
-
-  *object.slabSize() = Slab::kSize;
-  *object.minAllocSize() = CompressedPtr::getMinAllocSize();
-  return object;
 }
 
 // for benchmarking purposes.

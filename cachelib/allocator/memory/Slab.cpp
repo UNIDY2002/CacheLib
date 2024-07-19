@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "cachelib/allocator/memory/Slab.h"
+#include "Slab.h"
 
 using namespace facebook::cachelib;
 

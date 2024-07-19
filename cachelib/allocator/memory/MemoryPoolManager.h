@@ -27,10 +27,9 @@
 #include <folly/container/F14Map.h>
 #pragma GCC diagnostic pop
 
-#include "cachelib/allocator/memory/MemoryPool.h"
-#include "cachelib/allocator/memory/Slab.h"
-#include "cachelib/allocator/memory/SlabAllocator.h"
-#include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
+#include "MemoryPool.h"
+#include "Slab.h"
+#include "SlabAllocator.h"
 
 namespace facebook {
 namespace cachelib {
@@ -50,15 +49,6 @@ class MemoryPoolManager {
   // creates a memory pool manager for this slabAllocator.
   // @param slabAlloc  the slab allocator to be used for the memory pools.
   explicit MemoryPoolManager(SlabAllocator& slabAlloc);
-
-  // creates a memory pool manager by restoring it from a serialized buffer.
-  //
-  // @param object    Object that contains the data to restore MemoryPoolManger
-  // @param slabAlloc the slab allocator for fetching the header info.
-  //
-  // @throw  std::logic_error if the slab allocator is not restorable.
-  MemoryPoolManager(const serialization::MemoryPoolManagerObject& object,
-                    SlabAllocator& slabAlloc);
 
   MemoryPoolManager(const MemoryPoolManager&) = delete;
   MemoryPoolManager& operator=(const MemoryPoolManager&) = delete;
@@ -122,17 +112,6 @@ class MemoryPoolManager {
 
   // returns the current pool ids that are being used.
   std::set<PoolId> getPoolIds() const;
-
-  // for saving the state of the memory pool manager
-  //
-  // precondition:  The object must have been instantiated with a restorable
-  // slab allocator that does not own the memory. serialization must happen
-  // without any reader or writer present. Any modification of this object
-  // afterwards will result in an invalid, inconsistent state for the
-  // serialized data.
-  //
-  // @throw std::logic_error if the object state can not be serialized
-  serialization::MemoryPoolManagerObject saveState() const;
 
   // size in bytes of the remaining size that is not reserved for any pools.
   size_t getBytesUnReserved() const {

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "cachelib/allocator/memory/MemoryAllocator.h"
+#include "MemoryAllocator.h"
 
 #include <folly/Format.h>
 
@@ -45,24 +45,6 @@ MemoryAllocator::MemoryAllocator(Config config, size_t memSize)
       slabAllocator_(memSize,
                      {config_.disableFullCoredump, config_.lockMemory}),
       memoryPoolManager_(slabAllocator_) {
-  checkConfig(config_);
-}
-
-MemoryAllocator::MemoryAllocator(
-    const serialization::MemoryAllocatorObject& object,
-    void* memoryStart,
-    size_t memSize,
-    bool disableCoredump)
-    : config_(std::set<uint32_t>{object.allocSizes()->begin(),
-                                 object.allocSizes()->end()},
-              *object.enableZeroedSlabAllocs(),
-              disableCoredump,
-              *object.lockMemory()),
-      slabAllocator_(*object.slabAllocator(),
-                     memoryStart,
-                     memSize,
-                     {config_.disableFullCoredump, config_.lockMemory}),
-      memoryPoolManager_(*object.memoryPoolManager(), slabAllocator_) {
   checkConfig(config_);
 }
 
@@ -130,17 +112,6 @@ ClassId MemoryAllocator::getAllocationClassId(PoolId poolId,
                                               uint32_t size) const {
   const auto& pool = memoryPoolManager_.getPoolById(poolId);
   return pool.getAllocationClassId(size);
-}
-
-serialization::MemoryAllocatorObject MemoryAllocator::saveState() {
-  serialization::MemoryAllocatorObject object;
-  object.allocSizes()->insert(config_.allocSizes.begin(),
-                              config_.allocSizes.end());
-  *object.enableZeroedSlabAllocs() = config_.enableZeroedSlabAllocs;
-  *object.lockMemory() = config_.lockMemory;
-  *object.slabAllocator() = slabAllocator_.saveState();
-  *object.memoryPoolManager() = memoryPoolManager_.saveState();
-  return object;
 }
 
 SlabReleaseContext MemoryAllocator::startSlabRelease(

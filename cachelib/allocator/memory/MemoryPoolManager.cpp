@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "cachelib/allocator/memory/MemoryPoolManager.h"
+#include "MemoryPoolManager.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -29,54 +29,6 @@ constexpr unsigned int MemoryPoolManager::kMaxPools;
 
 MemoryPoolManager::MemoryPoolManager(SlabAllocator& slabAlloc)
     : slabAlloc_(slabAlloc) {}
-
-MemoryPoolManager::MemoryPoolManager(
-    const serialization::MemoryPoolManagerObject& object,
-    SlabAllocator& slabAlloc)
-    : nextPoolId_(*object.nextPoolId()), slabAlloc_(slabAlloc) {
-  if (!slabAlloc_.isRestorable()) {
-    throw std::logic_error(
-        "Memory Pool Manager can not be restored,"
-        " slabAlloc not restored");
-  }
-  // Check if nextPoolid is restored properly or not. If not restored,
-  // throw error
-  if (!object.nextPoolId().is_set()) {
-    throw std::logic_error(
-        "Memory Pool Manager can not be restored,"
-        " nextPoolId is not set");
-  }
-
-  // Number of items in pools must be same as nextPoolId, if not throw error
-  if (object.pools()->size() != static_cast<size_t>(nextPoolId_)) {
-    throw std::logic_error(
-        "Memory Pool Manager can not be restored,"
-        "pools size is not equal to nextPoolId");
-  }
-  size_t slabsAdvised = 0;
-  for (size_t i = 0; i < object.pools()->size(); ++i) {
-    pools_[i] = std::make_unique<MemoryPool>(object.pools()[i], slabAlloc_);
-    slabsAdvised += pools_[i]->getNumSlabsAdvised();
-  }
-  for (const auto& kv : *object.poolsByName()) {
-    poolsByName_.insert(kv);
-  }
-
-  // Number items in the poolsByName map must be same as nextPoolId, if not
-  // throw error
-  if (object.poolsByName()->size() != static_cast<size_t>(nextPoolId_)) {
-    throw std::logic_error(
-        "Memory Pool Manager can not be restored,"
-        "poolsByName size is not equal to nextPoolId");
-  }
-  numSlabsToAdvise_ = slabAlloc_.numSlabsReclaimable();
-  if (slabsAdvised != numSlabsToAdvise_) {
-    throw std::logic_error(folly::sformat(
-        "Aggregate of advised slabs in pools {} is not same as SlabAllocator"
-        " number of slabs advised {}",
-        slabsAdvised, numSlabsToAdvise_.load()));
-  }
-}
 
 size_t MemoryPoolManager::getRemainingSizeLocked() const noexcept {
   const size_t totalSize =
@@ -151,26 +103,6 @@ const std::string& MemoryPoolManager::getPoolNameById(PoolId id) const {
     }
   }
   throw std::invalid_argument(folly::sformat("Invali pool id {}", id));
-}
-
-serialization::MemoryPoolManagerObject MemoryPoolManager::saveState() const {
-  if (!slabAlloc_.isRestorable()) {
-    throw std::logic_error("Memory Pool Manager can not be restored");
-  }
-
-  serialization::MemoryPoolManagerObject object;
-
-  object.pools().emplace();
-  for (PoolId i = 0; i < nextPoolId_; ++i) {
-    object.pools()->push_back(pools_[i]->saveState());
-  }
-  object.poolsByName().emplace();
-  for (const auto& kv : poolsByName_) {
-    object.poolsByName()->insert(kv);
-  }
-  object.nextPoolId() = nextPoolId_;
-
-  return object;
 }
 
 std::set<PoolId> MemoryPoolManager::getPoolIds() const {

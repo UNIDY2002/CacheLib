@@ -25,7 +25,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "cachelib/common/CompilerUtils.h"
+#include "common/CompilerUtils.h"
 
 namespace facebook {
 namespace cachelib {

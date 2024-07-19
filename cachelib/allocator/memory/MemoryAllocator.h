@@ -18,18 +18,16 @@
 
 #include <limits>
 
-#include "cachelib/allocator/memory/AllocationClass.h"
-#include "cachelib/allocator/memory/MemoryPool.h"
-#include "cachelib/allocator/memory/MemoryPoolManager.h"
-#include "cachelib/allocator/memory/Slab.h"
-#include "cachelib/allocator/memory/SlabAllocator.h"
+#include "AllocationClass.h"
+#include "MemoryPool.h"
+#include "MemoryPoolManager.h"
+#include "Slab.h"
+#include "SlabAllocator.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
 #include <folly/Format.h>
 #pragma GCC diagnostic pop
-
-#include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
 
 namespace facebook {
 namespace cachelib {
@@ -69,8 +67,6 @@ class AllocTestBase;
 // Read the description at the beginning of the file for more info
 class MemoryAllocator {
  public:
-  using SerializationType = serialization::MemoryAllocatorObject;
-
   // maximum number of allocation classes that we support.
   static constexpr unsigned int kMaxClasses = 1 << 7;
   static constexpr ClassId kMaxClassId = kMaxClasses - 1;
@@ -137,19 +133,6 @@ class MemoryAllocator {
   // @throw std::invalid_argument if the config is invalid or the size
   //        passed in is too small to instantiate a slab allocator.
   MemoryAllocator(Config config, size_t memSize);
-
-  // creates a memory allocator by restoring it from a serialized buffer.
-  // @param object          Object that contains the data to restore
-  //                        MemoryAllocator
-  // @param memoryStart     the start of the memory region that was originally
-  //                        used to create this memory allocator.
-  // @param memSize         the size of the memory region that was originally
-  //                        used to create this memory allocator
-  // @param disableCoredump exclude mapped region from core dumps
-  MemoryAllocator(const serialization::MemoryAllocatorObject& object,
-                  void* memoryStart,
-                  size_t memSize,
-                  bool disableCoredump);
 
   MemoryAllocator(const MemoryAllocator&) = delete;
   MemoryAllocator& operator=(const MemoryAllocator&) = delete;
@@ -501,17 +484,6 @@ class MemoryAllocator {
   // @throw   std::invalid_argument if the poolId is invalid or the size is
   //          outside of the allocation sizes for the memory pool.
   ClassId getAllocationClassId(PoolId poolId, uint32_t nBytes) const;
-
-  // for saving the state of the memory allocator
-  //
-  // precondition:  The object must have been instantiated with a restorable
-  // slab allocator that does not own the memory. serialization must happen
-  // without any reader or writer present. Any modification of this object
-  // afterwards will result in an invalid, inconsistent state for the
-  // serialized data.
-  //
-  // @throw std::logic_error if the object state can not be serialized
-  serialization::MemoryAllocatorObject saveState();
 
   using CompressedPtr = facebook::cachelib::CompressedPtr;
   template <typename PtrType>

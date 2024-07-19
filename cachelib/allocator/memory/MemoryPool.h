@@ -22,14 +22,9 @@
 #include <mutex>
 #include <vector>
 
-#include "cachelib/allocator/memory/AllocationClass.h"
-#include "cachelib/allocator/memory/MemoryAllocatorStats.h"
-#include "cachelib/allocator/memory/Slab.h"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
-#pragma GCC diagnostic pop
+#include "AllocationClass.h"
+#include "MemoryAllocatorStats.h"
+#include "Slab.h"
 
 namespace facebook {
 namespace cachelib {
@@ -62,15 +57,6 @@ class MemoryPool {
              size_t poolSize,
              SlabAllocator& alloc,
              const std::set<uint32_t>& allocSizes);
-
-  // creates a pool by restoring it from a serialized buffer.
-  // @param object  Object that contains the data to restore MemoryPool
-  // @param alloc   the slab allocator for fetching the header info.
-  // @throw   std::invalid_argument if the object state is invalid.
-  //          std::logic_error if the Memory pool is not compatible for
-  //          restoration with the slab allocator.
-  MemoryPool(const serialization::MemoryPoolObject& object,
-             SlabAllocator& alloc);
 
   MemoryPool(const MemoryPool&) = delete;
   MemoryPool& operator=(const MemoryPool&) = delete;
@@ -239,17 +225,6 @@ class MemoryPool {
   // @return           the actual number of slabs reclaimed by the pool
   size_t reclaimSlabsAndGrow(size_t numSlabs);
 
-  // for saving the state of the memory pool
-  //
-  // precondition:  The object must have been instantiated with a restorable
-  // slab allocator that does not own the memory. serialization must happen
-  // without any reader or writer present. Any modification of this object
-  // afterwards will result in an invalid, inconsistent state for the
-  // serialized data.
-  //
-  // @throw std::logic_error if the object state can not be serialized
-  serialization::MemoryPoolObject saveState() const;
-
   // fetch the ClassId corresponding to the allocation class from this memory
   // pool
   //
@@ -402,14 +377,6 @@ class MemoryPool {
   std::atomic<unsigned int> nSlabResize_{0};
   std::atomic<unsigned int> nSlabRebalance_{0};
   std::atomic<unsigned int> nSlabReleaseAborted_{0};
-
-  static std::vector<uint32_t> createMcSizesFromSerialized(
-      const serialization::MemoryPoolObject& object);
-
-  static ACVector createMcFromSerialized(
-      const serialization::MemoryPoolObject& object,
-      PoolId poolId,
-      SlabAllocator& alloc);
 
   // Allow access to private members by unit tests
   friend class facebook::cachelib::tests::AllocTestBase;

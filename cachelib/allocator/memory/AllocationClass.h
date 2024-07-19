@@ -24,12 +24,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include "cachelib/allocator/datastruct/SList.h"
-#include "cachelib/allocator/memory/CompressedPtr.h"
-#include "cachelib/allocator/memory/MemoryAllocatorStats.h"
-#include "cachelib/allocator/memory/Slab.h"
-#include "cachelib/allocator/memory/SlabAllocator.h"
-#include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
+#include "SList.h"
+#include "CompressedPtr.h"
+#include "MemoryAllocatorStats.h"
+#include "Slab.h"
+#include "SlabAllocator.h"
 
 namespace facebook {
 namespace cachelib {
@@ -60,21 +59,6 @@ class AllocationClass {
   AllocationClass(ClassId classId,
                   PoolId poolId,
                   uint32_t allocSize,
-                  const SlabAllocator& s);
-
-  // restore this AllocationClass from the serialized data.
-  // @param object  Object that contains the data to restore AllocationClass
-  // @param poolId  the poolId corresponding to this allocation class
-  // @param s       the slab allocator for fetching the header info. s must be
-  //                a restorable slab allocator which was previously used with
-  //                the same allocation class object.
-  //
-  // @throw std::invalid_argument if the classId is invalid or the allocSize
-  //        is invalid.
-  // @throw std::logic_error if the allocation class cannot be restored with
-  //        this allocator
-  AllocationClass(const serialization::AllocationClassObject& object,
-                  PoolId poolId,
                   const SlabAllocator& s);
 
   AllocationClass(const AllocationClass&) = delete;
@@ -296,17 +280,6 @@ class AllocationClass {
   // @throw   std::runtime_error if the slab does not have the allocStateMap
   //          entry.
   bool allFreed(const Slab* slab) const;
-
-  // for saving and restoring the state of the allocation class
-  //
-  // precondition:  The object must have been instantiated with a restorable
-  // slab allocator does not own the memory. serialization must happen without
-  // any reader or writer present. All active slab releases must have
-  // completed.  Any modification of this object afterwards
-  // will result in an invalid, inconsistent state for the serialized data.
-  //
-  // @throw std::logic_error if the object state can not be serialized
-  serialization::AllocationClassObject saveState() const;
 
  private:
   // check if the state of the AllocationClass is valid and if not, throws an
