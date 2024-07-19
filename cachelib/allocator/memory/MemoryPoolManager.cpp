@@ -35,7 +35,7 @@ size_t MemoryPoolManager::getRemainingSizeLocked() const noexcept {
   return totalSize - sum;
 }
 
-PoolId MemoryPoolManager::createNewPool(folly::StringPiece name,
+PoolId MemoryPoolManager::createNewPool(std::string name,
                                         size_t poolSize,
                                         const std::set<uint32_t>& allocSizes) {
   std::unique_lock l(lock_);
@@ -59,7 +59,7 @@ PoolId MemoryPoolManager::createNewPool(folly::StringPiece name,
   const PoolId id = nextPoolId_;
   pools_[id] =
       std::make_unique<MemoryPool>(id, poolSize, slabAlloc_, allocSizes);
-  poolsByName_.insert({name.str(), id});
+  poolsByName_.insert({name, id});
   nextPoolId_++;
   return id;
 }

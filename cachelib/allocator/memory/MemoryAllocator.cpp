@@ -51,7 +51,7 @@ void* MemoryAllocator::allocateZeroedSlab(PoolId id) {
   return mp.allocateZeroedSlab();
 }
 
-PoolId MemoryAllocator::addPool(folly::StringPiece name,
+PoolId MemoryAllocator::addPool(std::string name,
                                 size_t size,
                                 const std::set<uint32_t>& allocSizes,
                                 bool ensureProvisionable) {

@@ -21,11 +21,6 @@
 #include <array>
 #include <unordered_map>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#include <folly/container/F14Map.h>
-#pragma GCC diagnostic pop
-
 #include "MemoryPool.h"
 #include "Slab.h"
 #include "SlabAllocator.h"
@@ -57,7 +52,7 @@ class MemoryPoolManager {
   // @return on success, returns id of the new memory pool.
   // @throw  std::invalid_argument if the name/size/allcoSizes are invalid or
   //         std::logic_error if we have run out the allowed number of pools.
-  PoolId createNewPool(folly::StringPiece name,
+  PoolId createNewPool(std::string name,
                        size_t size,
                        const std::set<uint32_t>& allocSizes);
 
@@ -138,7 +133,7 @@ class MemoryPoolManager {
   std::array<std::unique_ptr<MemoryPool>, kMaxPools> pools_;
 
   // pool name -> pool Id mapping.
-  folly::F14FastMap<std::string, PoolId> poolsByName_;
+  std::map<std::string, PoolId> poolsByName_;
 
   // the next available pool id.
   std::atomic<PoolId> nextPoolId_{0};

@@ -170,7 +170,7 @@ class MemoryAllocator {
   // @throws std::invalid_argument if the name or size is inappropriate or
   //         if there is not enough space left for this pool.
   //         std::logic_error if we have run out the allowed number of pools.
-  PoolId addPool(folly::StringPiece name,
+  PoolId addPool(std::string name,
                  size_t size,
                  const std::set<uint32_t>& allocSizes = {},
                  bool ensureProvisionable = false);
