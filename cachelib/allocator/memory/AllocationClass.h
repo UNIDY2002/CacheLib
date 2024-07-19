@@ -16,9 +16,6 @@
 
 #pragma once
 
-#include <folly/lang/Aligned.h>
-#include <folly/synchronization/DistributedMutex.h>
-
 #include <atomic>
 #include <mutex>
 #include <unordered_map>
@@ -141,17 +138,21 @@ class AllocationClass {
 
     // check for the header to be valid.
     using Return = folly::Optional<AllocInfo>;
-    auto allocInfo = lock_->lock_combine([this, slab]() -> Return {
-      auto slabHdr = slabAlloc_.getSlabHeader(slab);
+    folly::Optional<AllocInfo> allocInfo;
+    {
+      std::unique_lock l(lock_);
+      allocInfo = ([this, slab]() -> Return {
+        auto slabHdr = slabAlloc_.getSlabHeader(slab);
 
-      if (!slabHdr || slabHdr->classId != classId_ ||
-          slabHdr->poolId != poolId_ || slabHdr->isAdvised() ||
-          slabHdr->isMarkedForRelease()) {
-        return folly::none;
-      }
+        if (!slabHdr || slabHdr->classId != classId_ ||
+            slabHdr->poolId != poolId_ || slabHdr->isAdvised() ||
+            slabHdr->isMarkedForRelease()) {
+          return folly::none;
+        }
 
-      return Return{{slabHdr->poolId, slabHdr->classId, slabHdr->allocSize}};
-    });
+        return Return{{slabHdr->poolId, slabHdr->classId, slabHdr->allocSize}};
+      })();
+    }
     if (!allocInfo) {
       return SlabIterationStatus::kSkippedCurrentSlabAndContinue;
     }
@@ -373,7 +374,7 @@ class AllocationClass {
 
   // lock for serializing access to currSlab_, currOffset, allocatedSlabs_,
   // freeSlabs_, freedAllocations_.
-  mutable folly::cacheline_aligned<folly::DistributedMutex> lock_;
+  mutable std::mutex lock_;
 
   // the allocation class id.
   const ClassId classId_{-1};
