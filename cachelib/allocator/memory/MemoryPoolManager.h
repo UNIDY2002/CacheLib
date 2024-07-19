@@ -34,11 +34,6 @@
 namespace facebook {
 namespace cachelib {
 
-struct PoolAdviseReclaimData {
-  std::unordered_map<PoolId, uint64_t> poolAdviseReclaimMap;
-  bool advise; // true for advise, false for reclaim
-};
-
 // used to organize the available memory into pools and identify them by a
 // string name or pool id.
 class MemoryPoolManager {
@@ -119,30 +114,6 @@ class MemoryPoolManager {
     return getRemainingSizeLocked();
   }
 
-  // returns the number of slabs to be advised
-  uint64_t getNumSlabsToAdvise() const { return numSlabsToAdvise_; }
-
-  // updates the number of slabs to be advised by numSlabs. This would
-  // either increment (to advise away more slabs) or decrement (to reclaim
-  // some of the previously advised away slabs) the numSlabsToAdvise_ by
-  // numSlabs.
-  //
-  // @param numSlabs   number of slabs to add-to/subtract-from numSlabToAdvise_
-  //
-  // @throw std::invalid_argument if numSlabs is negative and its absolute
-  //                              value is more than numSlabsToAdvise_
-  //                              (ie total slabs to be reclaimed cannot be
-  //                               more than total slabs advised away)
-  void updateNumSlabsToAdvise(int32_t numSlabs) {
-    if (numSlabs < 0 && static_cast<uint64_t>(-numSlabs) > numSlabsToAdvise_) {
-      throw std::invalid_argument(
-          folly::sformat("Invalid numSlabs {} to update  numSlabsToAdvise {}",
-                         numSlabs,
-                         numSlabsToAdvise_.load()));
-    }
-    numSlabsToAdvise_ += numSlabs;
-  }
-
   // return total memory currently advised away
   size_t getAdvisedMemorySize() const noexcept {
     size_t sum = 0;
@@ -153,37 +124,11 @@ class MemoryPoolManager {
     return sum;
   }
 
-  // calculate the number of slabs to be advised/reclaimed in each pool
-  //
-  // @param poolIds    list of pools to process
-  //
-  // @return   vector of pairs with first value as poolId and second value
-  //           the number of slabs to advise or number of slabs to reclaim
-  //           (indicated by negative number)
-  PoolAdviseReclaimData calcNumSlabsToAdviseReclaim(
-      const std::set<PoolId>& poolIds) const;
-
  private:
   // obtain the remaining size in bytes that is not reserved by taking into
   // account the total available memory in the slab allocator and the size of
   // all the pools we manage.
   size_t getRemainingSizeLocked() const noexcept;
-
-  // returns a map of poolId and target number of slabs to be advised in that
-  // pool
-  // @param poolIds           list of regular pool ids. Compact Cache pools
-  //                          memory is not advised-away/reclaimed
-  // @param totalSlabsInUse   total slabs in use across all pools
-  // @param numSlabsInUse     a map of pool-id to number of slabs in use in that
-  //                          pool. This is passed in (instead of obtaining
-  //                          using invoking getCurrentUsedSize() everytime
-  //                          because the slabs used in a pool could change
-  //                          while we are determining the number of slabs to
-  //                          advise
-  std::unordered_map<PoolId, uint64_t> getTargetSlabsToAdvise(
-      std::set<PoolId> poolIds,
-      uint64_t totalSlabsInUse,
-      std::unordered_map<PoolId, size_t>& numSlabsInUse) const;
 
   // rw lock serializing the access to poolsByName_ and pool creation.
   mutable folly::SharedMutex lock_;
@@ -201,12 +146,6 @@ class MemoryPoolManager {
 
   // slab allocator for the pools
   SlabAllocator& slabAlloc_;
-
-  // Number of slabs to advise away
-  // This is target number of slabs to be advised across all pools.
-  // This would be same as sum of current number of advised away slabs in
-  // each pool after a memory monitor iteration
-  std::atomic<uint64_t> numSlabsToAdvise_{0};
 
   // Allow access to private members by unit tests
   friend class facebook::cachelib::tests::AllocTestBase;

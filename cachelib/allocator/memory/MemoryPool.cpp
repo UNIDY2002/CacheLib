@@ -292,16 +292,6 @@ void MemoryPool::releaseSlab(SlabReleaseMode mode,
     ++nSlabResize_;
     break;
 
-  case SlabReleaseMode::kAdvise:
-    if (slabAllocator_.adviseSlab(const_cast<Slab*>(slab))) {
-      ++curSlabsAdvised_;
-    } else {
-      LockHolder l(lock_);
-      freeSlabs_.push_back(const_cast<Slab*>(slab));
-    }
-    currSlabAllocSize_ -= Slab::kSize;
-    break;
-
   case SlabReleaseMode::kRebalance:
     if (receiverClassId != Slab::kInvalidClassId) {
       // Pool's current size does not change since this slab is
@@ -322,22 +312,6 @@ void MemoryPool::releaseSlab(SlabReleaseMode mode,
     ++nSlabRebalance_;
     break;
   }
-}
-
-size_t MemoryPool::reclaimSlabsAndGrow(size_t numSlabs) {
-  unsigned int numReclaimed = 0;
-  for (size_t i = 0; i < numSlabs; i++) {
-    auto slab = slabAllocator_.reclaimSlab(id_);
-    if (!slab) {
-      break;
-    }
-    XDCHECK(slabAllocator_.getSlabHeader(slab)->poolId == getId());
-    LockHolder l(lock_);
-    freeSlabs_.push_back(slab);
-    --curSlabsAdvised_;
-    ++numReclaimed;
-  }
-  return numReclaimed;
 }
 
 SlabReleaseContext MemoryPool::releaseFromFreeSlabs() {

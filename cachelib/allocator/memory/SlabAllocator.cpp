@@ -99,14 +99,6 @@ void SlabAllocator::stopMemoryLocker() {
   }
 }
 
-SlabAllocator::SlabAllocator(size_t size, const Config& config)
-    : SlabAllocator(util::mmapAlignedZeroedMemory(sizeof(Slab), size),
-                    size,
-                    true,
-                    config) {
-  XDCHECK(!isRestorable());
-}
-
 SlabAllocator::SlabAllocator(void* memoryStart,
                              size_t memorySize,
                              const Config& config)
@@ -132,76 +124,11 @@ SlabAllocator::SlabAllocator(void* memoryStart,
     excludeMemoryFromCoredump();
   }
 
-  if (config.lockMemory) {
-    memoryLocker_ = std::thread{[this]() { lockMemoryAsync(); }};
-  }
-
   XDCHECK_EQ(0u, reinterpret_cast<uintptr_t>(memoryStart_) % sizeof(Slab));
   XDCHECK_EQ(0u, memorySize_ % sizeof(Slab));
   XDCHECK(nextSlabAllocation_ != nullptr);
   XDCHECK_EQ(reinterpret_cast<uintptr_t>(nextSlabAllocation_),
              reinterpret_cast<uintptr_t>(slabMemoryStart_));
-}
-
-void SlabAllocator::lockMemoryAsync() noexcept {
-  try {
-    // memory start is always page aligned since it is aligned to slab size.
-    auto* mem = reinterpret_cast<const uint8_t* const>(memoryStart_);
-    XDCHECK(util::isPageAlignedAddr(mem));
-
-    const size_t numPages = util::getNumPages(memorySize_);
-    const size_t pageSize = util::getPageSize();
-
-    size_t pageOffset = 0;
-    size_t numAdvisedAwayPages = 0;
-
-    while (pageOffset < numPages) {
-      if (stopLocking_) {
-        return;
-      }
-
-      auto pageAddr = mem + pageOffset * pageSize;
-      // Avoid touching advised away pages.
-      const auto header = getSlabHeader(pageAddr);
-      if (header && header->isAdvised()) {
-        ++numAdvisedAwayPages;
-      } else {
-        // this relies on the fact that the pages used with the allocator are
-        // shared memory pages. For memory that is not shared, touching the
-        // memory won't page them in until the page gets written to. We default
-        // to mlock for that and require the caller to set the appropriate
-        // rlimits. Use volatile to fool the compiler to not optimize this away
-        // in opt mode.
-        volatile const uint8_t val = *pageAddr;
-        (void)val;
-      }
-
-      ++pageOffset;
-
-      if (pageOffset % kPagesPerStep == 0) {
-        /* sleep override */
-        std::this_thread::sleep_for(std::chrono::milliseconds(kLockSleepMS));
-      }
-    }
-
-    // verify everything got paged in. If it doesn't, then we'll end up locking
-    // advised away pages, which means we'll start off with some unusable
-    // cache memory.
-    const auto numInCore = util::getNumResidentPages(memoryStart_, memorySize_);
-    if (numInCore != numPages - numAdvisedAwayPages) {
-      XLOGF(ERR,
-            "could not page in all memory. numPages = {}, numInCore = {}. "
-            "Trying to mlock.",
-            numPages - numAdvisedAwayPages, numInCore);
-      // try mlock to see if that helps.
-      const int rv = mlock(memoryStart_, memorySize_);
-      if (rv != 0) {
-        XLOGF(ERR, "could not mlock. errno = {}", errno);
-      }
-    }
-  } catch (const std::exception& e) {
-    XLOGF(ERR, "Exception during locking memory {}", e.what());
-  }
 }
 
 namespace {
@@ -309,62 +236,6 @@ void SlabAllocator::freeSlab(Slab* slab) {
   freeSlabs_.push_back(slab);
   canAllocate_ = true;
   header->resetAllocInfo();
-}
-
-bool SlabAllocator::adviseSlab(Slab* slab) {
-  // find the header for the slab.
-  auto* header = getSlabHeader(slab);
-  if (header == nullptr) {
-    throw std::runtime_error(folly::sformat("Invalid Slab {}", slab));
-  }
-  // Mark slab as advised in header prior to advising to avoid it from being
-  // touched during memory locking.
-  header->setAdvised(true);
-  // madvise kernel to release this slab. Do this while not holding the
-  // lock since the MADV_REMOVE happens inline.
-  auto ret = madvise((void*)slab->memoryAtOffset(0), Slab::kSize, MADV_REMOVE);
-  if (!ret || pretendMadvise_) {
-    LockHolder l(lock_);
-    advisedSlabs_.push_back(slab);
-    // This doesn't reset flags
-    header->resetAllocInfo();
-    return true;
-  }
-  // Unset the flag since we failed to advise this slab away
-  header->setAdvised(false);
-  return false;
-}
-
-Slab* FOLLY_NULLABLE SlabAllocator::reclaimSlab(PoolId id) {
-  Slab* slab = nullptr;
-  {
-    LockHolder l(lock_);
-    if (!advisedSlabs_.empty()) {
-      auto it = advisedSlabs_.begin();
-      slab = *it;
-      advisedSlabs_.erase(it);
-    }
-  }
-
-  if (!slab) {
-    return nullptr;
-  }
-
-  const size_t numPages = util::getNumPages(sizeof(Slab));
-  const size_t pageSize = util::getPageSize();
-  auto* mem = reinterpret_cast<const uint8_t* const>(slab->memoryAtOffset(0));
-  XDCHECK(util::isPageAlignedAddr(mem));
-
-  for (size_t pageOffset = 0; pageOffset < numPages; pageOffset++) {
-    // Use volatile to fool the compiler to not optimize this away in opt
-    // mode.
-    volatile const uint8_t val = *(mem + pageOffset * pageSize);
-    (void)val;
-  }
-  memoryPoolSize_[id] += sizeof(Slab);
-  // initialize the header for the slab.
-  initializeHeader(slab, id);
-  return slab;
 }
 
 SlabHeader* SlabAllocator::getSlabHeader(

@@ -190,7 +190,6 @@ struct CACHELIB_PACKED_ATTR SlabHeader {
 enum class SlabReleaseMode {
   kResize,    // Resize the pool
   kRebalance, // Rebalance away a slab from one pool to another
-  kAdvise     // Advise away slab to increase free memory
 };
 
 // Used to denote store the context for releasing a slab.  This is created

@@ -124,16 +124,6 @@ class MemoryAllocator {
   //        memoryStart is not aligned to Slab size.
   MemoryAllocator(Config config, void* memoryStart, size_t memSize);
 
-  // same as the above, but creates a mmaped region of the size and tries to
-  // unmap the memory on destruction. this instantiation can not be saved and
-  // restored.
-  //
-  // @param config     The config for the allocator.
-  // @param memSize     The size of memory in bytes.
-  // @throw std::invalid_argument if the config is invalid or the size
-  //        passed in is too small to instantiate a slab allocator.
-  MemoryAllocator(Config config, size_t memSize);
-
   MemoryAllocator(const MemoryAllocator&) = delete;
   MemoryAllocator& operator=(const MemoryAllocator&) = delete;
 
@@ -320,37 +310,6 @@ class MemoryAllocator {
   //        also specified. Receiver class id can only be specified if the mode
   //        is set to kRebalance.
   void completeSlabRelease(const SlabReleaseContext& context);
-
-  // The startSlabRelease/completeSlabRelease methods are used with
-  // SlabReleaseContext::kAdvise to advise away slabs, one at a time,
-  // under memory pressure. Typically, pools are asked to advise away the
-  // number of slabs that is proportional to their current size to avoid
-  // disproportionately affecting some pools over others. When there is plenty
-  // of free memory, pools are asked to reclaim slabs using
-  // reclaimSlabsAndGrow() method below to reclaim slabs in proportion
-  // to their current size.
-
-  // Advising away slabs reduces the total memory size of the cache reported by
-  // slab allocator as well as the individual pool's max and used sizes,
-  // reflecting the fact cache size and pool sizes have reduced. The
-  // numSlabsReclaimable() method provides the count of advised away slabs
-  // and therefore the reduced memory size.
-
-  // Reclaim the given number of advised away slabs from the slab allocator
-  // for the given pool. If the numSlabs exceeds the number of advised away
-  // slabs (numSlabsReclaimable()), then number of slabs reclaimed is
-  // equal to numSlabsReclaimable().
-  //
-  // @return the number of slabs reclaimed
-  size_t reclaimSlabsAndGrow(PoolId id, size_t numSlabs) {
-    auto& pool = memoryPoolManager_.getPoolById(id);
-    return pool.reclaimSlabsAndGrow(numSlabs);
-  }
-
-  // Number of slabs that are advised away and can be reclaimed.
-  size_t numSlabsReclaimable() const noexcept {
-    return slabAllocator_.numSlabsReclaimable();
-  }
 
   // get the PoolId corresponding to the pool name.
   //
@@ -594,29 +553,6 @@ class MemoryAllocator {
       uint32_t maxSize = Slab::kSize,
       uint32_t minSize = 72,
       bool reduceFragmentation = false);
-
-  // calculate the number of slabs to be advised/reclaimed in each pool
-  //
-  // @param poolIds    list of pools to process
-  //
-  // @return   PoolAdviseReclaimData containing poolId,
-  //           the number of slabs to advise or number of slabs to reclaim
-  //           and flag indicating if the number is for advising-away or
-  //           reclaiming
-  PoolAdviseReclaimData calcNumSlabsToAdviseReclaim(
-      const std::set<PoolId>& poolIds) {
-    return memoryPoolManager_.calcNumSlabsToAdviseReclaim(poolIds);
-  }
-
-  // update number of slabs to advise in the cache
-  //
-  // @param numSlabs      the number of slabs to advise are updated
-  //                      (incremented or decremented) to reflect the
-  //                      new total number of slabs to be advised in the
-  //                      cache
-  void updateNumSlabsToAdvise(int32_t numSlabs) {
-    memoryPoolManager_.updateNumSlabsToAdvise(numSlabs);
-  }
 
  private:
   // @param memory    pointer to the memory.

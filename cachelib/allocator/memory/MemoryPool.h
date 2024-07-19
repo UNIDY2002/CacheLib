@@ -215,13 +215,6 @@ class MemoryPool {
   //        is set to kRebalance.
   void completeSlabRelease(const SlabReleaseContext& context);
 
-  // Reclaim the given number of advised away slabs for this pool from
-  // the slab allocator.
-  //
-  // @param numSlabs   the maximum number of slab to be reclaimed.
-  // @return           the actual number of slabs reclaimed by the pool
-  size_t reclaimSlabsAndGrow(size_t numSlabs);
-
   // fetch the ClassId corresponding to the allocation class from this memory
   // pool
   //
@@ -269,16 +262,6 @@ class MemoryPool {
     return allocClass.forEachAllocation(
         slab, std::forward<AllocTraversalFn>(callback));
   }
-
-  // returns the number of slabs currently advised away
-  uint64_t getNumSlabsAdvised() const { return curSlabsAdvised_; }
-
-  // set the number of slabs advised away. This is called only when
-  // we have no slabs to advise away or reclaim but number of slabs
-  // advised in across the pools need to be rebalanced.
-  //
-  // @param value  new value for the curSlabsAdvised_
-  void setNumSlabsAdvised(uint64_t value) { curSlabsAdvised_ = value; }
 
  private:
   // container for storing a vector of AllocationClass.

@@ -16,8 +16,6 @@
 
 #include "MemoryAllocator.h"
 
-#include <folly/Format.h>
-
 using namespace facebook::cachelib;
 
 namespace {
@@ -35,15 +33,7 @@ MemoryAllocator::MemoryAllocator(Config config,
     : config_(std::move(config)),
       slabAllocator_(memoryStart,
                      memSize,
-                     {config_.disableFullCoredump, config_.lockMemory}),
-      memoryPoolManager_(slabAllocator_) {
-  checkConfig(config_);
-}
-
-MemoryAllocator::MemoryAllocator(Config config, size_t memSize)
-    : config_(std::move(config)),
-      slabAllocator_(memSize,
-                     {config_.disableFullCoredump, config_.lockMemory}),
+                     {config_.disableFullCoredump}),
       memoryPoolManager_(slabAllocator_) {
   checkConfig(config_);
 }

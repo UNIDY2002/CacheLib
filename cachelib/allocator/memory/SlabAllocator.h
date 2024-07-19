@@ -51,14 +51,10 @@ class SlabAllocator {
  public:
   struct Config {
     Config() {}
-    Config(bool _excludeFromCoreDump, bool _lockMemory)
-        : excludeFromCoredump(_excludeFromCoreDump), lockMemory(_lockMemory) {}
+    Config(bool _excludeFromCoreDump)
+        : excludeFromCoredump(_excludeFromCoreDump) {}
     // exclude the memory region from core dumps
     bool excludeFromCoredump{false};
-
-    // lock the pages in memory, forcing to allocate them and retaining them in
-    // memory even when untouched.
-    bool lockMemory{false};
   };
 
   // initialize the slab allocator for the range of memory starting from
@@ -74,12 +70,6 @@ class SlabAllocator {
   // @throw std::invalid_argument if the memoryStart is not aligned to Slab
   // size or if memorySize is incorrect.
   SlabAllocator(void* memoryStart, size_t memorySize, const Config& config);
-
-  // same as the above, but allocates the memory using mmap and munmaps it
-  // on destruction. Instantiating through this means you cannot save the
-  // state and restore the slab allocator since the memory is destroyed once
-  // the object is destroyed.
-  SlabAllocator(size_t memorySize, const Config& config);
 
   // free up and unmap the mmaped memory if the allocator was created with
   // one.
@@ -119,18 +109,6 @@ class SlabAllocator {
   //
   // @throw throws std::runtime_error if the slab is invalid
   void freeSlab(Slab* slab);
-
-  // Frees a used slab and advises it away to free its memory.
-  // The slab goes into an advised slabs pool to enable
-  // reclaiming its memory later.
-  //
-  // @throw throws std::runtime_error if the slab is invalid
-  // @return true if madvise succeeded
-  bool adviseSlab(Slab* slab);
-
-  // Page in the pages for the slab into memory that were previously
-  // madvised away for the given pool.
-  Slab* reclaimSlab(PoolId id);
 
   // Number of advised away slabs that can be reclaimed by calling reclaimSlab()
   size_t numSlabsReclaimable() const noexcept {
@@ -345,12 +323,6 @@ class SlabAllocator {
   //
   // @throw std::system_error on any failure to advise
   void excludeMemoryFromCoredump() const;
-
-  // used by the memory locker to get pages allocated and locked into the
-  // binary. With a cache size of 256GB, this will have about 60 million page
-  // faults to reoslve and we want to spread that out evenly and do it
-  // asynchronously.
-  void lockMemoryAsync() noexcept;
 
   // shutsdown the memory locker if it is still running.
   void stopMemoryLocker();

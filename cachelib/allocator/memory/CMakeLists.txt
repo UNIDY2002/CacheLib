@@ -13,5 +13,4 @@ add_library (cachelib_memory_allocator
         MemoryPoolManager.cpp
         Slab.cpp
         SlabAllocator.cpp
-        common/Utils.cpp
 )
