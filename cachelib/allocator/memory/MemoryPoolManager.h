@@ -16,9 +16,8 @@
 
 #pragma once
 
-#include <folly/SharedMutex.h>
-
 #include <array>
+#include <shared_mutex>
 #include <unordered_map>
 
 #include "MemoryPool.h"
@@ -125,7 +124,7 @@ class MemoryPoolManager {
   size_t getRemainingSizeLocked() const noexcept;
 
   // rw lock serializing the access to poolsByName_ and pool creation.
-  mutable folly::SharedMutex lock_;
+  mutable std::shared_mutex lock_;
 
   // array of pools by Id. The valid pools are up to (nextPoolId_ - 1). This
   // is to ensure that we can fetch pools by Id without holding any locks as
