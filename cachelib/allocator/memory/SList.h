@@ -18,7 +18,10 @@
 
 #include <folly/logging/xlog.h>
 
+#include <cassert>
+
 #include "common/CompilerUtils.h"
+#include "common/Exceptions.h"
 
 namespace facebook::cachelib {
 /**

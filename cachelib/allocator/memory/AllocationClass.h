@@ -18,11 +18,12 @@
 
 #include <atomic>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
-#include "SList.h"
 #include "CompressedPtr.h"
+#include "SList.h"
 #include "Slab.h"
 #include "SlabAllocator.h"
 
@@ -137,8 +138,8 @@ class AllocationClass {
     }
 
     // check for the header to be valid.
-    using Return = folly::Optional<AllocInfo>;
-    folly::Optional<AllocInfo> allocInfo;
+    using Return = std::optional<AllocInfo>;
+    Return allocInfo;
     {
       std::unique_lock l(lock_);
       allocInfo = ([this, slab]() -> Return {
@@ -147,7 +148,7 @@ class AllocationClass {
         if (!slabHdr || slabHdr->classId != classId_ ||
             slabHdr->poolId != poolId_ || slabHdr->isAdvised() ||
             slabHdr->isMarkedForRelease()) {
-          return folly::none;
+          return std::nullopt;
         }
 
         return Return{{slabHdr->poolId, slabHdr->classId, slabHdr->allocSize}};

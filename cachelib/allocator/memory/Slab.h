@@ -16,11 +16,13 @@
 
 #pragma once
 
+#include <folly/Likely.h>
 #include <folly/logging/xlog.h>
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <type_traits>
 #include <vector>
 

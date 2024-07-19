@@ -233,12 +233,12 @@ SlabHeader* SlabAllocator::getSlabHeader(
     const Slab* const slab) const noexcept {
   if ([&] {
         // TODO(T79149875): Fix data race exposed by TSAN.
-        folly::annotate_ignore_thread_sanitizer_guard g(__FILE__, __LINE__);
+        // folly::annotate_ignore_thread_sanitizer_guard g(__FILE__, __LINE__);
         return isValidSlab(slab);
       }()) {
     return [&] {
       // TODO(T79149875): Fix data race exposed by TSAN.
-      folly::annotate_ignore_thread_sanitizer_guard g(__FILE__, __LINE__);
+      // folly::annotate_ignore_thread_sanitizer_guard g(__FILE__, __LINE__);
       return getSlabHeader(slabIdx(slab));
     }();
   }

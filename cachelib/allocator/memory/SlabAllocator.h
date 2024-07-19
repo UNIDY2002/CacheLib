@@ -136,7 +136,7 @@ class SlabAllocator {
   FOLLY_ALWAYS_INLINE bool isValidSlab(const Slab* slab) const noexcept {
     // suppress TSAN race error, this is harmless because nextSlabAllocation_
     // cannot go backwards and slab can't become invalid once it is valid
-    folly::annotate_ignore_thread_sanitizer_guard g(__FILE__, __LINE__);
+    // folly::annotate_ignore_thread_sanitizer_guard g(__FILE__, __LINE__);
     return slab >= slabMemoryStart_ && slab < nextSlabAllocation_ &&
            getSlabForMemory(static_cast<const void*>(slab)) == slab;
   }
