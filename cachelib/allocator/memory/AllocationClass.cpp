@@ -20,13 +20,9 @@
 #include "common/Exceptions.h"
 #include "common/Throttler.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#include <folly/Random.h>
-#pragma GCC diagnostic pop
-
 #include <algorithm>
 #include <chrono>
+#include <random>
 #include <stdexcept>
 #include <thread>
 
@@ -167,8 +163,10 @@ const Slab* AllocationClass::getSlabForReleaseLocked() const noexcept {
   if (!freeSlabs_.empty()) {
     return freeSlabs_.front();
   } else if (!allocatedSlabs_.empty()) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
     auto idx =
-        folly::Random::rand32(static_cast<uint32_t>(allocatedSlabs_.size()));
+        std::uniform_int_distribution<uint32_t>(0, static_cast<uint32_t>(allocatedSlabs_.size() - 1))(gen);
     return allocatedSlabs_[idx];
   }
   return nullptr;
