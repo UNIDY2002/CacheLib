@@ -77,22 +77,11 @@ class MemoryAllocator {
     std::set<uint32_t> allocSizes;
   };
 
-  // Creates a memory allocator out of the caller allocated memory region. The
-  // memory is owned by the caller and destroying the memory allocator does
-  // not free the memory region it was initialized with. The MemoryAllocator
-  // only frees up the memory it allocated internally for its operation
-  // through malloc.
-  //
-  // @param  config     The config for the allocator.
-  // @param memoryStart The start address of the memory aligned to slab size.
-  //                    Cachelib assume that by default the memory is already
-  //                    zeroed by the user. Not doing so will result in
-  //                    undefined behavior when calling `allocateZeroedSlab`.
-  // @param memSize     The size of memory in bytes.
-  // @throw std::invalid_argument if the config is invalid or the memory is
-  //        passed in is too small to instantiate a slab allocator or if
-  //        memoryStart is not aligned to Slab size.
-  MemoryAllocator(Config config, void* memoryStart, size_t memSize);
+  // See Feishu document.
+  MemoryAllocator(Config config, void* headerMemoryStart,
+                  size_t headerMemorySize,
+                  void* slabMemoryStart,
+                  size_t slabMemorySize);
 
   MemoryAllocator(const MemoryAllocator&) = delete;
   MemoryAllocator& operator=(const MemoryAllocator&) = delete;
@@ -295,12 +284,6 @@ class MemoryAllocator {
 
   size_t getUnreservedMemorySize() const noexcept {
     return memoryPoolManager_.getBytesUnReserved();
-  }
-
-  // return the usable size in bytes for this allocator given the memory size
-  // and assuming no advised away slabs
-  static size_t getMemorySize(size_t memorySize) noexcept {
-    return SlabAllocator::getNumUsableSlabs(memorySize) * Slab::kSize;
   }
 
   // return the total memory advised away

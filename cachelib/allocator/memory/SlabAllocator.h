@@ -41,19 +41,11 @@ namespace cachelib {
 class SlabAllocator {
  public:
 
-  // initialize the slab allocator for the range of memory starting from
-  // memoryStart, up to memorySize bytes. The available memory is divided into
-  // space for slab headers and slabs. When created this way, the slab
-  // allocator does not own the memory. It just manages allocations on top of
-  // it. Destroying the object does not free up the memory.
-  //
-  // @param memoryStart   the start of the memory aligned to slab size.
-  // @param memorySize    the size of the memory.
-  // @param config        the config for this allocator
-  //
-  // @throw std::invalid_argument if the memoryStart is not aligned to Slab
-  // size or if memorySize is incorrect.
-  SlabAllocator(void* memoryStart, size_t memorySize);
+  // See Feishu document.
+  SlabAllocator(void* headerMemoryStart,
+                size_t headerMemorySize,
+                void* slabMemoryStart,
+                size_t slabMemorySize);
 
   // free up and unmap the mmaped memory if the allocator was created with
   // one.
@@ -249,16 +241,10 @@ class SlabAllocator {
   // reach 2^16 - 1;
   static constexpr SlabIdx kNullSlabIdx = std::numeric_limits<SlabIdx>::max();
 
-  // intended for the constructor to ensure we are in a valid state after
-  // constructing from a deserialized object.
-  //
-  // @throw std::invalid_argument if the state is invalid.
-  void checkState() const;
-
   // returns first byte after the end of memory region we own.
   const Slab* getSlabMemoryEnd() const noexcept {
-    return reinterpret_cast<Slab*>(reinterpret_cast<uint8_t*>(memoryStart_) +
-                                   memorySize_);
+    return reinterpret_cast<Slab*>(reinterpret_cast<uint8_t*>(slabMemoryStart_) +
+                                   slabMemorySize_);
   }
 
   // returns true if we have slabbed all the memory that is available to us.
@@ -270,7 +256,7 @@ class SlabAllocator {
   // this is for pointer compression.
   FOLLY_ALWAYS_INLINE SlabHeader* getSlabHeader(
       unsigned int slabIndex) const noexcept {
-    return reinterpret_cast<SlabHeader*>(memoryStart_) + slabIndex;
+    return reinterpret_cast<SlabHeader*>(headerMemoryStart_) + slabIndex;
   }
 
   // implementation of makeNewSlab that takes care of locking, free list and
@@ -280,10 +266,6 @@ class SlabAllocator {
 
   // Initialize the header for the given slab and pool
   void initializeHeader(Slab* slab, PoolId id);
-
-  // allocates space from the memory we own to store the SlabHeaders for all
-  // the slabs.
-  static Slab* computeSlabMemoryStart(void* memoryStart, size_t memorySize);
 
   // shutsdown the memory locker if it is still running.
   void stopMemoryLocker();
@@ -303,16 +285,17 @@ class SlabAllocator {
   // list of allocated slabs for which memory has been madvised away
   std::vector<Slab*> advisedSlabs_;
 
-  // start of the slab memory region aligned to slab size
-  void* const memoryStart_{nullptr};
+  // start of the slab header memory region
+  void* const headerMemoryStart_{nullptr};
+
+  // size of the slab header memory region
+  const size_t headerMemorySize_;
+
+  // beginning of the slab memory region
+  Slab* const slabMemoryStart_{nullptr};
 
   // size of memory aligned to slab size
-  const size_t memorySize_;
-
-  // beginning of the slab memory that we actually give out to the user. This
-  // is used to ensure that we dont treat slabs before this, that are used for
-  // headers as valid slab.
-  Slab* const slabMemoryStart_{nullptr};
+  const size_t slabMemorySize_;
 
   // the memory address up to which we have converted into slabs.
   Slab* nextSlabAllocation_{nullptr};

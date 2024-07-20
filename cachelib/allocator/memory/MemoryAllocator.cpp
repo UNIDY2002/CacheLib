@@ -28,11 +28,15 @@ void checkConfig(const MemoryAllocator::Config& config) {
 } // namespace
 
 MemoryAllocator::MemoryAllocator(Config config,
-                                 void* memoryStart,
-                                 size_t memSize)
+                                 void* headerMemoryStart,
+                                 size_t headerMemorySize,
+                                 void* slabMemoryStart,
+                                 size_t slabMemorySize)
     : config_(std::move(config)),
-      slabAllocator_(memoryStart,
-                     memSize),
+      slabAllocator_(headerMemoryStart,
+                     headerMemorySize,
+                     slabMemoryStart,
+                     slabMemorySize),
       memoryPoolManager_(slabAllocator_) {
   checkConfig(config_);
 }

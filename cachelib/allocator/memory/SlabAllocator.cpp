@@ -31,8 +31,8 @@
 using namespace facebook::cachelib;
 
 namespace {
-static inline size_t roundDownToSlabSize(size_t size) {
-  return size - (size % sizeof(Slab));
+unsigned int numSlabs(size_t memorySize) noexcept {
+  return static_cast<unsigned int>(memorySize / sizeof(Slab));
 }
 } // namespace
 
@@ -45,33 +45,35 @@ constexpr unsigned int CompressedPtr::kNumAllocIdxBits;
 constexpr unsigned int SlabAllocator::kLockSleepMS;
 constexpr size_t SlabAllocator::kPagesPerStep;
 
-void SlabAllocator::checkState() const {
-  if (memoryStart_ == nullptr || memorySize_ <= Slab::kSize) {
+SlabAllocator::SlabAllocator(void* headerMemoryStart,
+                             size_t headerMemorySize,
+                             void* slabMemoryStart,
+                             size_t slabMemorySize)
+    : headerMemoryStart_(headerMemoryStart),
+      headerMemorySize_(headerMemorySize),
+      slabMemoryStart_(reinterpret_cast<Slab*>(slabMemoryStart)),
+      slabMemorySize_(slabMemorySize),
+      nextSlabAllocation_(slabMemoryStart_) {
+  static_assert(!(sizeof(Slab) & (sizeof(Slab) - 1)),
+                "slab size must be power of two");
+
+  if (headerMemoryStart_ == nullptr ||
+      headerMemorySize_ <= sizeof(SlabHeader) * numSlabs(slabMemorySize_)) {
     throw std::invalid_argument(
-        fmt::format("Invalid memory spec. memoryStart = {}, size = {}",
-                       memoryStart_,
-                       memorySize_));
+        fmt::format("Invalid memory spec. headerMemoryStart = {}, size = {}",
+                    headerMemoryStart_,
+                    headerMemorySize_));
   }
 
-  if (slabMemoryStart_ == nullptr || nextSlabAllocation_ == nullptr) {
+  if (slabMemoryStart_ == nullptr ||
+      reinterpret_cast<uintptr_t>(slabMemoryStart) % sizeof(Slab)) {
     throw std::invalid_argument(
-        fmt::format("Invalid slabMemoryStart_ {} of nextSlabAllocation_ {}",
-                    (void*) slabMemoryStart_,
-                    (void*) nextSlabAllocation_));
+        fmt::format("Invalid slabMemoryStart_ {}", (void*)slabMemoryStart_));
   }
 
-  // nextSlabAllocation_ should be valid.
-  if (nextSlabAllocation_ > getSlabMemoryEnd()) {
+  if (slabMemorySize_ % sizeof(Slab)) {
     throw std::invalid_argument(
-        fmt::format("Invalid nextSlabAllocation_ {}, with SlabMemoryEnd {}",
-                    (void*) nextSlabAllocation_,
-                    (void*) getSlabMemoryEnd()));
-  }
-
-  for (const auto slab : freeSlabs_) {
-    if (!isValidSlab(slab)) {
-      throw std::invalid_argument(fmt::format("Invalid free slab {}", (void*) slab));
-    }
+        fmt::format("Invalid slabMemorySize_ {}", slabMemorySize_));
   }
 }
 
@@ -86,39 +88,6 @@ void SlabAllocator::stopMemoryLocker() {
   }
 }
 
-SlabAllocator::SlabAllocator(void* memoryStart,
-                             size_t memorySize)
-    : memoryStart_(memoryStart),
-      memorySize_(roundDownToSlabSize(memorySize)),
-      slabMemoryStart_(computeSlabMemoryStart(memoryStart_, memorySize_)),
-      nextSlabAllocation_(slabMemoryStart_) {
-  checkState();
-
-  static_assert(!(sizeof(Slab) & (sizeof(Slab) - 1)),
-                "slab size must be power of two");
-
-  XDCHECK_EQ(0u, reinterpret_cast<uintptr_t>(memoryStart_) % sizeof(Slab));
-  XDCHECK_EQ(0u, memorySize_ % sizeof(Slab));
-  XDCHECK(nextSlabAllocation_ != nullptr);
-  XDCHECK_EQ(reinterpret_cast<uintptr_t>(nextSlabAllocation_),
-             reinterpret_cast<uintptr_t>(slabMemoryStart_));
-}
-
-namespace {
-unsigned int numSlabs(size_t memorySize) noexcept {
-  return static_cast<unsigned int>(memorySize / sizeof(Slab));
-}
-unsigned int numSlabsForHeaders(size_t memorySize) noexcept {
-  const size_t headerSpace = sizeof(SlabHeader) * numSlabs(memorySize);
-  return static_cast<unsigned int>((headerSpace + sizeof(Slab) - 1) /
-                                   sizeof(Slab));
-}
-} // namespace
-
-unsigned int SlabAllocator::getNumUsableSlabs(size_t memorySize) noexcept {
-  return numSlabs(memorySize) - numSlabsForHeaders(memorySize);
-}
-
 unsigned int SlabAllocator::getNumUsableSlabs() const noexcept {
   return getNumUsableAndAdvisedSlabs() -
          static_cast<unsigned int>(numSlabsReclaimable());
@@ -126,25 +95,6 @@ unsigned int SlabAllocator::getNumUsableSlabs() const noexcept {
 
 unsigned int SlabAllocator::getNumUsableAndAdvisedSlabs() const noexcept {
   return static_cast<unsigned int>(getSlabMemoryEnd() - slabMemoryStart_);
-}
-
-Slab* SlabAllocator::computeSlabMemoryStart(void* memoryStart,
-                                            size_t memorySize) {
-  // compute the number of slabs we can have.
-  const auto numHeaderSlabs = numSlabsForHeaders(memorySize);
-  if (numSlabs(memorySize) <= numHeaderSlabs) {
-    throw std::invalid_argument("not enough memory for slabs");
-  }
-
-  if (memoryStart == nullptr ||
-      reinterpret_cast<uintptr_t>(memoryStart) % sizeof(Slab)) {
-    throw std::invalid_argument(
-        fmt::format("Invalid memory start {}", memoryStart));
-  }
-
-  // reserve the first numHeaderSlabs for storing the header info for all the
-  // slabs.
-  return reinterpret_cast<Slab*>(memoryStart) + numHeaderSlabs;
 }
 
 Slab* SlabAllocator::makeNewSlabImpl() {
