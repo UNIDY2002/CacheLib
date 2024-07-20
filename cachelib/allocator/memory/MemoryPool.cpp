@@ -259,8 +259,6 @@ void* MemoryPool::allocate(uint32_t size) {
   return alloc;
 }
 
-void* MemoryPool::allocateZeroedSlab() { return allocate(Slab::kSize); }
-
 void MemoryPool::free(void* alloc) {
   auto& ac = getAllocationClassFor(alloc);
   ac.free(alloc);
@@ -269,12 +267,7 @@ void MemoryPool::free(void* alloc) {
 
 void MemoryPool::releaseSlab(SlabReleaseMode mode,
                              const Slab* slab,
-                             bool zeroOnRelease,
                              ClassId receiverClassId) {
-  if (zeroOnRelease) {
-    memset(slab->memoryAtOffset(0), 0, Slab::kSize);
-  }
-
   // If we are doing a resize, we need to release the slab back to the
   // allocator since the pool is being resized. But, if we are doing a
   // rebalance, we are resizing the allocation classes in the pool. Hence we
@@ -327,7 +320,6 @@ SlabReleaseContext MemoryPool::startSlabRelease(
     ClassId receiver,
     SlabReleaseMode mode,
     const void* hint,
-    bool zeroOnRelease,
     SlabReleaseAbortFn shouldAbortFn) {
   if (receiver != Slab::kInvalidClassId &&
       mode != SlabReleaseMode::kRebalance) {
@@ -347,14 +339,13 @@ SlabReleaseContext MemoryPool::startSlabRelease(
                      : getAllocationClassFor(victim).startSlabRelease(
                            mode, hint, shouldAbortFn);
   context.setReceiver(receiver);
-  context.setZeroOnRelease(zeroOnRelease);
 
   // if the context is already in the released state, add it to the free
   // slabs. the caller should not have to call completeSlabRelease()
   if (context.isReleased()) {
     XDCHECK(context.getActiveAllocations().empty());
     // The caller does not need to call completeSlabRelease.
-    releaseSlab(context.getMode(), context.getSlab(), zeroOnRelease, receiver);
+    releaseSlab(context.getMode(), context.getSlab(), receiver);
   }
   return context;
 }
@@ -385,7 +376,6 @@ void MemoryPool::completeSlabRelease(const SlabReleaseContext& context) {
   auto slab = context.getSlab();
   auto mode = context.getMode();
   auto classId = context.getClassId();
-  auto zeroOnRelease = context.shouldZeroOnRelease();
   auto& allocClass = getAllocationClassFor(classId);
 
   // complete the slab release process.
@@ -396,5 +386,5 @@ void MemoryPool::completeSlabRelease(const SlabReleaseContext& context) {
              Slab::kInvalidClassId);
   XDCHECK_EQ(slabAllocator_.getSlabHeader(slab)->allocSize, 0u);
 
-  releaseSlab(mode, slab, zeroOnRelease, context.getReceiverClassId());
+  releaseSlab(mode, slab, context.getReceiverClassId());
 }

@@ -40,13 +40,6 @@ namespace cachelib {
 // each slab.
 class SlabAllocator {
  public:
-  struct Config {
-    Config() {}
-    Config(bool _excludeFromCoreDump)
-        : excludeFromCoredump(_excludeFromCoreDump) {}
-    // exclude the memory region from core dumps
-    bool excludeFromCoredump{false};
-  };
 
   // initialize the slab allocator for the range of memory starting from
   // memoryStart, up to memorySize bytes. The available memory is divided into
@@ -60,7 +53,7 @@ class SlabAllocator {
   //
   // @throw std::invalid_argument if the memoryStart is not aligned to Slab
   // size or if memorySize is incorrect.
-  SlabAllocator(void* memoryStart, size_t memorySize, const Config& config);
+  SlabAllocator(void* memoryStart, size_t memorySize);
 
   // free up and unmap the mmaped memory if the allocator was created with
   // one.
@@ -68,10 +61,6 @@ class SlabAllocator {
 
   SlabAllocator(const SlabAllocator&) = delete;
   SlabAllocator& operator=(const SlabAllocator&) = delete;
-
-  // returns true if the slab allocator can be restored through serialized
-  // state. This is a precondition to calling saveState.
-  bool isRestorable() const noexcept { return !ownsMemory_; }
 
   using LockHolder = std::unique_lock<std::mutex>;
 
@@ -260,12 +249,6 @@ class SlabAllocator {
   // reach 2^16 - 1;
   static constexpr SlabIdx kNullSlabIdx = std::numeric_limits<SlabIdx>::max();
 
-  // used for delegation from the first two types of constructors.
-  SlabAllocator(void* memoryStart,
-                size_t memorySize,
-                bool ownsMemory,
-                const Config& config);
-
   // intended for the constructor to ensure we are in a valid state after
   // constructing from a deserialized object.
   //
@@ -302,11 +285,6 @@ class SlabAllocator {
   // the slabs.
   static Slab* computeSlabMemoryStart(void* memoryStart, size_t memorySize);
 
-  // exclude associated slab memory from core dump
-  //
-  // @throw std::system_error on any failure to advise
-  void excludeMemoryFromCoredump() const;
-
   // shutsdown the memory locker if it is still running.
   void stopMemoryLocker();
 
@@ -342,9 +320,6 @@ class SlabAllocator {
   // boolean atomic that represents whether the allocator can allocate any
   // more slabs without holding any locks.
   std::atomic<bool> canAllocate_{true};
-
-  // whether the memory this slab allocator manages is mmaped by the caller.
-  const bool ownsMemory_{true};
 
   // thread that does back-ground job of paging in and locking the memory if
   // enabled.

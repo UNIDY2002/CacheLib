@@ -70,31 +70,11 @@ class MemoryAllocator {
   // config for the slab memory allocator.
   struct Config {
     Config() {}
-    Config(std::set<uint32_t> sizes,
-           bool zeroOnRelease,
-           bool disableCoredump,
-           bool _lockMemory)
-        : allocSizes(std::move(sizes)),
-          enableZeroedSlabAllocs(zeroOnRelease),
-          disableFullCoredump(disableCoredump),
-          lockMemory(_lockMemory) {}
+    Config(std::set<uint32_t> sizes)
+        : allocSizes(std::move(sizes)) {}
 
     // Hint to determine the allocation class sizes
     std::set<uint32_t> allocSizes;
-
-    // Must enable this in order to call `allocateZeroedSlab`.
-    // Otherwise, it will throw.
-    bool enableZeroedSlabAllocs{false};
-
-    // Exclude memory regions from core dumps
-    bool disableFullCoredump{false};
-
-    // Lock and page in the memory for the MemoryAllocator on startup. This is
-    // done asynchronously. This is persisted across saved state. To do this
-    // for shared memory, no rlimit is required. If the memory for the
-    // allocator is not shared, user needs to ensure there are appropriate
-    // rlimits setup to lock the memory.
-    bool lockMemory{false};
   };
 
   // Creates a memory allocator out of the caller allocated memory region. The
@@ -117,9 +97,6 @@ class MemoryAllocator {
   MemoryAllocator(const MemoryAllocator&) = delete;
   MemoryAllocator& operator=(const MemoryAllocator&) = delete;
 
-  // returns true if the memory allocator is restorable. false otherwise.
-  bool isRestorable() const noexcept { return slabAllocator_.isRestorable(); }
-
   // allocate memory of corresponding size.
   //
   // @param id    the pool id to be used for this allocation.
@@ -130,18 +107,6 @@ class MemoryAllocator {
   // @throw std::invalid_argument if the poolId is invalid or the size is
   //        invalid.
   void* allocate(PoolId id, uint32_t size);
-
-  // Allocate a zeroed Slab
-  //
-  // This guarantees the content of the allocated slab is zero because when
-  // we release a slab back to free slabs in a memory pool or slab allocator,
-  // we zero out the content of the slab
-  //
-  // @param id         the pool id to be used for this allocation.
-  //
-  // @throw std::logic_error if config_.enableZeroedSlabAllocs == false
-  // @throw std::invalid_argument if the poolId is invalid
-  void* allocateZeroedSlab(PoolId id);
 
   // free the memory back to the allocator.
   //

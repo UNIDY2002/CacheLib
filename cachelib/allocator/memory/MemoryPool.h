@@ -159,7 +159,6 @@ class MemoryPool {
   // @param hint  hint referring to the slab. this can be an allocation that
   //              the user knows to exist in the slab. If this is nullptr, a
   //              random slab is selected from the pool and allocation class.
-  // @param zeroOnRelease  whether or not to zero out the slab
   // @param shouldAbortFn  invoked in the code to see if this release slab
   //                       process should be aborted
   //
@@ -179,7 +178,6 @@ class MemoryPool {
       ClassId receiver,
       SlabReleaseMode mode,
       const void* hint,
-      bool zeroOnRelease,
       SlabReleaseAbortFn shouldAbortFn = []() { return false; });
 
   // Aborts the slab release process when there were active allocations in
@@ -300,11 +298,9 @@ class MemoryPool {
   // our free pool.
   // @param mode            the mode of the release operation
   // @param slab            the slab to be released.
-  // @param zeroOnRelease   whether or not to zero out the slab
   // @param receiverClassId optional AC to receive this slab
   void releaseSlab(SlabReleaseMode mode,
                    const Slab* slab,
-                   bool zeroOnRelease,
                    ClassId receiverClassId);
 
   // create a slab release context from the free slabs if possible.

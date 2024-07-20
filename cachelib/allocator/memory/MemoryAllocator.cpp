@@ -32,8 +32,7 @@ MemoryAllocator::MemoryAllocator(Config config,
                                  size_t memSize)
     : config_(std::move(config)),
       slabAllocator_(memoryStart,
-                     memSize,
-                     {config_.disableFullCoredump}),
+                     memSize),
       memoryPoolManager_(slabAllocator_) {
   checkConfig(config_);
 }
@@ -41,14 +40,6 @@ MemoryAllocator::MemoryAllocator(Config config,
 void* MemoryAllocator::allocate(PoolId id, uint32_t size) {
   auto& mp = memoryPoolManager_.getPoolById(id);
   return mp.allocate(size);
-}
-
-void* MemoryAllocator::allocateZeroedSlab(PoolId id) {
-  if (!config_.enableZeroedSlabAllocs) {
-    throw std::logic_error("Zeroed Slab allcoation is not enabled");
-  }
-  auto& mp = memoryPoolManager_.getPoolById(id);
-  return mp.allocateZeroedSlab();
 }
 
 PoolId MemoryAllocator::addPool(std::string name,
@@ -112,8 +103,7 @@ SlabReleaseContext MemoryAllocator::startSlabRelease(
     const void* hint,
     SlabReleaseAbortFn shouldAbortFn) {
   auto& pool = memoryPoolManager_.getPoolById(pid);
-  return pool.startSlabRelease(victim, receiver, mode, hint,
-                               config_.enableZeroedSlabAllocs, shouldAbortFn);
+  return pool.startSlabRelease(victim, receiver, mode, hint, shouldAbortFn);
 }
 
 bool MemoryAllocator::isAllocFreed(const SlabReleaseContext& ctx,

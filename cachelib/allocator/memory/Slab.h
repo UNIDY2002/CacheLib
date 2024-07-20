@@ -267,8 +267,6 @@ class SlabReleaseContext {
 
   ClassId getReceiverClassId() const noexcept { return receiver_; }
 
-  bool shouldZeroOnRelease() const noexcept { return zeroOnRelease_; }
-
   // @return  returns a list of active allocations. If the vector is empty
   //          it means no active allocations are associated with this slab.
   const std::vector<void*>& getActiveAllocations() const noexcept {
@@ -300,14 +298,7 @@ class SlabReleaseContext {
   // the mode for this slab release.
   const SlabReleaseMode mode_;
 
-  // Whether or not to zero initialize the slab on release.
-  bool zeroOnRelease_;
-
   void setReceiver(ClassId receiver) noexcept { receiver_ = receiver; }
-
-  void setZeroOnRelease(bool zeroOnRelease) noexcept {
-    zeroOnRelease_ = zeroOnRelease;
-  }
 
   friend class MemoryPool;
 };

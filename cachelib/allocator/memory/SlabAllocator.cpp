@@ -77,10 +77,6 @@ void SlabAllocator::checkState() const {
 
 SlabAllocator::~SlabAllocator() {
   stopMemoryLocker();
-
-  if (ownsMemory_) {
-    munmap(memoryStart_, memorySize_);
-  }
 }
 
 void SlabAllocator::stopMemoryLocker() {
@@ -91,29 +87,15 @@ void SlabAllocator::stopMemoryLocker() {
 }
 
 SlabAllocator::SlabAllocator(void* memoryStart,
-                             size_t memorySize,
-                             const Config& config)
-    : SlabAllocator(memoryStart, memorySize, false, config) {
-  XDCHECK(isRestorable());
-}
-
-SlabAllocator::SlabAllocator(void* memoryStart,
-                             size_t memorySize,
-                             bool ownsMemory,
-                             const Config& config)
+                             size_t memorySize)
     : memoryStart_(memoryStart),
       memorySize_(roundDownToSlabSize(memorySize)),
       slabMemoryStart_(computeSlabMemoryStart(memoryStart_, memorySize_)),
-      nextSlabAllocation_(slabMemoryStart_),
-      ownsMemory_(ownsMemory) {
+      nextSlabAllocation_(slabMemoryStart_) {
   checkState();
 
   static_assert(!(sizeof(Slab) & (sizeof(Slab) - 1)),
                 "slab size must be power of two");
-
-  if (config.excludeFromCoredump) {
-    excludeMemoryFromCoredump();
-  }
 
   XDCHECK_EQ(0u, reinterpret_cast<uintptr_t>(memoryStart_) % sizeof(Slab));
   XDCHECK_EQ(0u, memorySize_ % sizeof(Slab));
@@ -304,20 +286,4 @@ void* SlabAllocator::unCompressAlt(const CompressedPtr cPtr) const {
     slabOffset += (allocSize - delta);
   }
   return slab->memoryAtOffset(slabOffset);
-}
-
-void SlabAllocator::excludeMemoryFromCoredump() const {
-  // dump the headers always. Very useful for debugging when we have
-  // pointers and need to find information. slab headers are only few slabs
-  // and in the order of 4-8MB
-  auto slabMemStartPtr = reinterpret_cast<uint8_t*>(slabMemoryStart_);
-  const size_t headerBytes =
-      slabMemStartPtr - reinterpret_cast<uint8_t*>(memoryStart_);
-  const size_t slabBytes = memorySize_ - headerBytes;
-  XDCHECK_LT(slabBytes, memorySize_);
-
-  if (madvise(slabMemStartPtr, slabBytes, MADV_DONTDUMP)) {
-    throw std::system_error(errno, std::system_category(),
-                            "madvise failed to exclude memory from coredump");
-  }
 }
