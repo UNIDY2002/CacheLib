@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <sys/mman.h>
-
 #include <atomic>
 #include <mutex>
 #include <thread>
@@ -74,23 +72,8 @@ class SlabAllocator {
   // @throw throws std::runtime_error if the slab is invalid
   void freeSlab(Slab* slab);
 
-  // Number of advised away slabs that can be reclaimed by calling reclaimSlab()
-  size_t numSlabsReclaimable() const noexcept {
-    LockHolder l(lock_);
-    return advisedSlabs_.size();
-  }
-
-  // Assumes there are no slabs that have been advised away from given memory.
-  // returns the number of usable slabs  for the given amount of memory in
-  // bytes aligned to Slab's size.
-  static unsigned int getNumUsableSlabs(size_t memorySize) noexcept;
-
-  // returns the number of slabs that the cache can hold excluding
-  // advised away slabs, which are not usable.
+  // returns the number of slabs that the cache can hold.
   unsigned int getNumUsableSlabs() const noexcept;
-
-  // return the number of slabs that the cache can hold
-  unsigned int getNumUsableAndAdvisedSlabs() const noexcept;
 
   // returns the SlabHeader for the memory address or nullptr if the memory
   // is invalid. Hotly accessed for getting alloc info
@@ -282,9 +265,6 @@ class SlabAllocator {
   // list of allocated slabs that are not in use.
   std::vector<Slab*> freeSlabs_;
 
-  // list of allocated slabs for which memory has been madvised away
-  std::vector<Slab*> advisedSlabs_;
-
   // start of the slab header memory region
   void* const headerMemoryStart_{nullptr};
 
@@ -310,10 +290,6 @@ class SlabAllocator {
 
   // signals the locker thread to stop if we need to shutdown this instance.
   std::atomic<bool> stopLocking_{false};
-
-  // Used by tests to avoid having to created shared memory for madvise
-  // to be successful.
-  bool pretendMadvise_{false};
 
   // amount of time to sleep in between each step to spread out the page
   // faults over a period of time.

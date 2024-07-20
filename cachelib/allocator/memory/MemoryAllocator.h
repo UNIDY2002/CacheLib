@@ -276,12 +276,6 @@ class MemoryAllocator {
     return slabAllocator_.getNumUsableSlabs() * Slab::kSize;
   }
 
-  // return the usable size including the advised away size in bytes
-  // for this allocator.
-  size_t getMemorySizeInclAdvised() const noexcept {
-    return slabAllocator_.getNumUsableAndAdvisedSlabs() * Slab::kSize;
-  }
-
   size_t getUnreservedMemorySize() const noexcept {
     return memoryPoolManager_.getBytesUnReserved();
   }

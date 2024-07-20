@@ -16,17 +16,7 @@
 
 #include "SlabAllocator.h"
 
-#include <sys/mman.h>
-
 #include <stdexcept>
-
-/* Missing madvise(2) flags on MacOS */
-#ifndef MADV_REMOVE
-#define MADV_REMOVE 0
-#endif
-#ifndef MADV_DONTDUMP
-#define MADV_DONTDUMP 0
-#endif
 
 using namespace facebook::cachelib;
 
@@ -89,11 +79,6 @@ void SlabAllocator::stopMemoryLocker() {
 }
 
 unsigned int SlabAllocator::getNumUsableSlabs() const noexcept {
-  return getNumUsableAndAdvisedSlabs() -
-         static_cast<unsigned int>(numSlabsReclaimable());
-}
-
-unsigned int SlabAllocator::getNumUsableAndAdvisedSlabs() const noexcept {
   return static_cast<unsigned int>(getSlabMemoryEnd() - slabMemoryStart_);
 }
 
@@ -126,7 +111,7 @@ Slab* SlabAllocator::makeNewSlabImpl() {
 }
 
 // This does not hold the lock since the expectation is that its used with
-// new/free/advised away slabs which are not in active use.
+// new/free slabs which are not in active use.
 void SlabAllocator::initializeHeader(Slab* slab, PoolId id) {
   auto* header = getSlabHeader(slab);
   XDCHECK(header != nullptr);
