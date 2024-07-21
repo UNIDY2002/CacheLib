@@ -17,13 +17,13 @@
 #pragma once
 
 #include <atomic>
+#include <list>
 #include <mutex>
 #include <optional>
 #include <unordered_map>
 #include <vector>
 
 #include "CompressedPtr.h"
-#include "SList.h"
 #include "Slab.h"
 #include "SlabAllocator.h"
 
@@ -406,18 +406,9 @@ class AllocationClass {
   // TODO use an intrusive container on the freed slabs.
   std::vector<Slab*> freeSlabs_;
 
-  // void* is re-interpreted as FreeAlloc* before being stored in the free
-  // list.
-  struct CACHELIB_PACKED_ATTR FreeAlloc {
-    using CompressedPtr = facebook::cachelib::CompressedPtr;
-    using PtrCompressor =
-        facebook::cachelib::PtrCompressor<FreeAlloc, SlabAllocator>;
-    SListHook<FreeAlloc> hook_{};
-  };
-
   // list of freed allocations for this allocation class.
-  using FreeList = SList<FreeAlloc, &FreeAlloc::hook_>;
-  FreeList freedAllocations_;
+  using FreeList = std::list<void*>;
+  FreeList freedAllocations_{};
 
   // Partition the 'freeAllocs' into two different SList depending on whether
   // they are in slab memory or outside. Does not take a lock. If access to

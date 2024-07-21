@@ -39,8 +39,7 @@ AllocationClass::AllocationClass(ClassId classId,
     : classId_(classId),
       poolId_(poolId),
       allocationSize_(allocSize),
-      slabAlloc_(s),
-      freedAllocations_{slabAlloc_.createPtrCompressor<FreeAlloc>()} {
+      slabAlloc_(s) {
   checkState();
 }
 
@@ -51,9 +50,7 @@ void AllocationClass::checkState() const {
         fmt::format("Invalid Class Id {}", classId_));
   }
 
-  // Check size against FreeAlloc to ensure that we have sufficient memory
-  // for the intrusive list's hook.
-  if (allocationSize_ < sizeof(FreeAlloc) || allocationSize_ > Slab::kSize) {
+  if (allocationSize_ > Slab::kSize) {
     throw std::invalid_argument(
         fmt::format("Invalid alloc size {}", allocationSize_));
   }
@@ -134,9 +131,9 @@ void* AllocationClass::allocateLocked() {
 
   // grab from the free list if possible.
   if (!freedAllocations_.empty()) {
-    FreeAlloc* ret = freedAllocations_.getHead();
+    void* ret = freedAllocations_.front();
     XDCHECK(ret != nullptr);
-    freedAllocations_.pop();
+    freedAllocations_.pop_front();
     return reinterpret_cast<void*>(ret);
   }
 
@@ -309,12 +306,12 @@ void AllocationClass::partitionFreeAllocs(const Slab* slab,
                                           FreeList& notInSlab) {
   for (unsigned int i = 0; i < kFreeAllocsPruneLimit && !freeAllocs.empty();
        ++i) {
-    auto alloc = freeAllocs.getHead();
-    freeAllocs.pop();
+    auto alloc = freeAllocs.front();
+    freeAllocs.pop_front();
     if (slabAlloc_.isMemoryInSlab(reinterpret_cast<void*>(alloc), slab)) {
-      inSlab.insert(*alloc);
+      inSlab.push_front(alloc);
     } else {
-      notInSlab.insert(*alloc);
+      notInSlab.push_front(alloc);
     }
   }
 }
@@ -325,9 +322,9 @@ std::pair<bool, std::vector<void*>> AllocationClass::pruneFreeAllocs(
   // allocated slab, release any freed allocations belonging to this slab.
   // Set the bit to true if the corresponding allocation is freed, false
   // otherwise.
-  FreeList freeAllocs{slabAlloc_.createPtrCompressor<FreeAlloc>()};
-  FreeList notInSlab{slabAlloc_.createPtrCompressor<FreeAlloc>()};
-  FreeList inSlab{slabAlloc_.createPtrCompressor<FreeAlloc>()};
+  FreeList freeAllocs{};
+  FreeList notInSlab{};
+  FreeList inSlab{};
 
   {
     std::unique_lock l(lock_);
@@ -355,15 +352,15 @@ std::pair<bool, std::vector<void*>> AllocationClass::pruneFreeAllocs(
       ([&]() {
         // Put back allocs we checked while not holding the lock.
         if (!notInSlab.empty()) {
-          freedAllocations_.splice(std::move(notInSlab));
+          freedAllocations_.splice(freedAllocations_.begin(), std::move(notInSlab));
           canAllocate_ = true;
         }
 
         auto& allocState = getSlabReleaseAllocMapLocked(slab);
         // Mark allocs we found while not holding the lock as freed.
         while (!inSlab.empty()) {
-          auto alloc = inSlab.getHead();
-          inSlab.pop();
+          auto alloc = inSlab.front();
+          inSlab.pop_front();
           XDCHECK(
               slabAlloc_.isMemoryInSlab(reinterpret_cast<void*>(alloc), slab));
           const auto idx = getAllocIdx(slab, reinterpret_cast<void*>(alloc));
@@ -399,12 +396,12 @@ std::pair<bool, std::vector<void*>> AllocationClass::pruneFreeAllocs(
     std::unique_lock l(lock_);
     ([&]() {
       if (!notInSlab.empty()) {
-        freeAllocs.splice(std::move(notInSlab));
+        freeAllocs.splice(freeAllocs.begin(), std::move(notInSlab));
       }
       if (!inSlab.empty()) {
-        freeAllocs.splice(std::move(inSlab));
+        freeAllocs.splice(freeAllocs.begin(), std::move(inSlab));
       }
-      freedAllocations_.splice(std::move(freeAllocs));
+      freedAllocations_.splice(freedAllocations_.begin(), std::move(freeAllocs));
     })();
     return {shouldAbort, activeAllocations};
   }
@@ -479,7 +476,7 @@ void AllocationClass::abortSlabRelease(const SlabReleaseContext& context) {
       for (size_t idx = 0; idx < allocState.size(); idx++) {
         if (allocState[idx]) {
           auto alloc = getAllocForIdx(slab, idx);
-          freedAllocations_.insert(*reinterpret_cast<FreeAlloc*>(alloc));
+          freedAllocations_.push_front(alloc);
           inserted = true;
         }
       }
@@ -644,7 +641,7 @@ void AllocationClass::free(void* memory) {
     }
 
     // TODO add checks here to ensure that we dont double free in debug mode.
-    freedAllocations_.insert(*reinterpret_cast<FreeAlloc*>(memory));
+    freedAllocations_.push_front(memory);
     canAllocate_ = true;
   })();
 }
