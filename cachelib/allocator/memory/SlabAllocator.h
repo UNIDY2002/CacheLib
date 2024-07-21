@@ -26,7 +26,6 @@
 #include <fmt/core.h>
 #include <folly/logging/xlog.h>
 
-#include "CompressedPtr.h"
 #include "Slab.h"
 #include "common/Utils.h"
 
@@ -117,82 +116,6 @@ class SlabAllocator {
 
   using SlabIdx = uint32_t;
 
-  // compress and uncompress a pointer in the slab memory to/from a smaller
-  // representation. The pointer must belong to a valid allocation made out of
-  // the corresponding memory allocator. trying to inline this just increases
-  // the code size and does not move the needle on the benchmarks much.
-  // Calling this with invalid input in optimized build is undefined behavior.
-  CompressedPtr CACHELIB_INLINE compress(const void* ptr,
-                                         bool isMultiTiered) const {
-    if (ptr == nullptr) {
-      return CompressedPtr{};
-    }
-
-    const Slab* slab = getSlabForMemory(ptr);
-    if (!isValidSlab(slab)) {
-      throw std::invalid_argument(
-          fmt::format("Invalid pointer ptr {}", ptr));
-    }
-
-    const auto slabIndex = static_cast<SlabIdx>(slab - slabMemoryStart_);
-    const SlabHeader* header = getSlabHeader(slabIndex);
-
-    const uint32_t allocSize = header->allocSize;
-    XDCHECK(allocSize >= CompressedPtr::getMinAllocSize());
-
-    const auto allocIdx =
-        static_cast<uint32_t>(reinterpret_cast<const uint8_t*>(ptr) -
-                              reinterpret_cast<const uint8_t*>(slab)) /
-        allocSize;
-    return CompressedPtr{slabIndex, allocIdx, isMultiTiered};
-  }
-
-  // uncompress the point and return the raw ptr.  This function never throws
-  // in optimized build and assumes that the caller is responsible for calling
-  // it with a valid compressed pointer.
-  void* CACHELIB_INLINE unCompress(const CompressedPtr ptr,
-                                   bool isMultiTiered) const {
-    if (ptr.isNull()) {
-      return nullptr;
-    }
-
-    /* TODO: isMultiTiered set to false by default.
-       Multi-tiering flag will have no impact till
-       rest of the multi-tiering changes are merged.
-     */
-    const SlabIdx slabIndex = ptr.getSlabIdx(isMultiTiered);
-    const uint32_t allocIdx = ptr.getAllocIdx();
-    const Slab* slab = &slabMemoryStart_[slabIndex];
-
-#ifndef NDEBUG
-    if (UNLIKELY(!isValidSlab(slab))) {
-      throw std::invalid_argument(
-          fmt::format("Invalid slab index {}", slabIndex));
-    }
-#endif
-
-    const auto* header = getSlabHeader(slabIndex);
-    const uint32_t allocSize = header->allocSize;
-
-    XDCHECK_GE(allocSize, CompressedPtr::getMinAllocSize());
-    const auto offset = allocSize * allocIdx;
-
-#ifndef NDEBUG
-    if (offset >= Slab::kSize) {
-      throw std::invalid_argument(
-          fmt::format("Invalid slab offset. allocSize = {}, allocIdx = {}",
-                         allocSize,
-                         allocIdx));
-    }
-#endif
-
-    return slab->memoryAtOffset(offset);
-  }
-
-  // a special implementation of pointer compression for benchmarking purposes.
-  CompressedPtr compressAlt(const void* ptr) const;
-  void* unCompressAlt(const CompressedPtr ptr) const;
-
   // returns the index of the slab from the start of the slab memory
   SlabIdx slabIdx(const Slab* const slab) const noexcept {
     if (slab == nullptr) {
@@ -214,11 +137,6 @@ class SlabAllocator {
     return &slabMemoryStart_[idx];
   }
 
-  template <typename PtrType>
-  PtrCompressor<PtrType, SlabAllocator> createPtrCompressor() const {
-    return PtrCompressor<PtrType, SlabAllocator>(*this);
-  }
-
  private:
   // null Slab* presenttation. With 4M Slab size, a valid slab index would never
   // reach 2^16 - 1;
@@ -236,7 +154,6 @@ class SlabAllocator {
     return nextSlabAllocation_ == getSlabMemoryEnd();
   }
 
-  // this is for pointer compression.
   FOLLY_ALWAYS_INLINE SlabHeader* getSlabHeader(
       unsigned int slabIndex) const noexcept {
     return reinterpret_cast<SlabHeader*>(headerMemoryStart_) + slabIndex;

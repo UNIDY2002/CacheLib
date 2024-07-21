@@ -23,7 +23,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "CompressedPtr.h"
 #include "Slab.h"
 #include "SlabAllocator.h"
 

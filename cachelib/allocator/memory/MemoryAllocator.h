@@ -366,54 +366,6 @@ class MemoryAllocator {
   //          outside of the allocation sizes for the memory pool.
   ClassId getAllocationClassId(PoolId poolId, uint32_t nBytes) const;
 
-  using CompressedPtr = facebook::cachelib::CompressedPtr;
-  template <typename PtrType>
-  using PtrCompressor =
-      facebook::cachelib::PtrCompressor<PtrType, SlabAllocator>;
-
-  template <typename PtrType>
-  PtrCompressor<PtrType> createPtrCompressor() {
-    return slabAllocator_.createPtrCompressor<PtrType>();
-  }
-
-  // compress a given pointer to a valid allocation made out of this allocator
-  // through an allocate() or nullptr. Calling this otherwise with invalid
-  // pointers leads to undefined behavior. It is guranteed to not throw if the
-  // pointer is valid.
-  //
-  // @param  ptr    valid pointer to allocated memory.
-  // @return        A compressed pointer that corresponds to the same
-  //                allocation.  This can be stored and decompressed as long
-  //                as the original pointer is valid.
-  //
-  // @throw  std::invalid_argument if the ptr is invalid.
-  CompressedPtr CACHELIB_INLINE compress(const void* ptr,
-                                         bool isMultiTiered) const {
-    return slabAllocator_.compress(ptr, isMultiTiered);
-  }
-
-  // retrieve the raw pointer corresponding to the compressed pointer. This is
-  // guaranteed to succeed as long as the pointer corresponding to this was
-  // never freed back to the allocator.
-  //
-  // @param cPtr    the compressed pointer
-  // @return        the raw pointer corresponding to this compressed pointer.
-  //
-  // @throw   std::invalid_argument if the compressed pointer is invalid.
-  void* CACHELIB_INLINE unCompress(const CompressedPtr cPtr,
-                                   bool isMultiTiered) const {
-    return slabAllocator_.unCompress(cPtr, isMultiTiered);
-  }
-
-  // a special implementation of pointer compression for benchmarking purposes.
-  CompressedPtr CACHELIB_INLINE compressAlt(const void* ptr) const {
-    return slabAllocator_.compressAlt(ptr);
-  }
-
-  void* CACHELIB_INLINE unCompressAlt(const CompressedPtr cPtr) const {
-    return slabAllocator_.unCompressAlt(cPtr);
-  }
-
   // Traverse each slab and call user defined callback on each allocation
   // within the slab. Callback will be invoked if the slab is not advised,
   // marked for release or currently being moved. Callbacks will be invoked

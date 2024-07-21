@@ -27,11 +27,7 @@ unsigned int numSlabs(size_t memorySize) noexcept {
 } // namespace
 
 // definitions to avoid ODR violation.
-using PtrType = CompressedPtr::PtrType;
 constexpr uint64_t SlabAllocator::kAddressMask;
-constexpr PtrType CompressedPtr::kAllocIdxMask;
-constexpr unsigned int CompressedPtr::kNumAllocIdxBits;
-
 constexpr unsigned int SlabAllocator::kLockSleepMS;
 constexpr size_t SlabAllocator::kPagesPerStep;
 
@@ -168,57 +164,4 @@ bool SlabAllocator::isMemoryInSlab(const void* ptr,
     return false;
   }
   return getSlabForMemory(ptr) == slab;
-}
-
-// for benchmarking purposes.
-const unsigned int kMarkerBits = 6;
-CompressedPtr SlabAllocator::compressAlt(const void* ptr) const {
-  if (ptr == nullptr) {
-    return CompressedPtr{};
-  }
-
-  ptrdiff_t delta = reinterpret_cast<const uint8_t*>(ptr) -
-                    reinterpret_cast<const uint8_t*>(slabMemoryStart_);
-  return CompressedPtr{
-      static_cast<CompressedPtr::PtrType>(delta >> kMarkerBits)};
-}
-
-void* SlabAllocator::unCompressAlt(const CompressedPtr cPtr) const {
-  if (cPtr.isNull()) {
-    return nullptr;
-  }
-
-  const auto markerOffset = cPtr.getRaw() << kMarkerBits;
-  const void* markerPtr =
-      reinterpret_cast<const uint8_t*>(slabMemoryStart_) + markerOffset;
-
-  const auto* header = getSlabHeader(markerPtr);
-  const auto allocSize = header->allocSize;
-
-  XDCHECK_GE(allocSize, 1u << kMarkerBits);
-
-  auto slab = getSlabForMemory(markerPtr);
-
-  auto slabOffset = reinterpret_cast<uintptr_t>(markerPtr) -
-                    reinterpret_cast<uintptr_t>(slab);
-  XDCHECK_LT(slabOffset, Slab::kSize);
-  /*
-   * Since the marker is to the left of the desired allocation, now
-   * we want to find the alloc boundary to the right of this marker.
-   * But we start off by finding the distance to the alloc
-   * boundary on our left, which we call delta.
-   * Then the distance to the right is allocSize - delta:
-   *
-   *      I                   M                       I
-   *      <-- delta ---------><-- allocSize - delta -->
-   *
-   * Since allocs start at the beginning of the slab, and are all allocSize
-   * bytes big, delta is just slabOffset % allocSize.  If delta is 0, then the
-   * marker is already at an alloc boundary.
-   */
-  const auto delta = slabOffset % allocSize;
-  if (delta) {
-    slabOffset += (allocSize - delta);
-  }
-  return slab->memoryAtOffset(slabOffset);
 }
